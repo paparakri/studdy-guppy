@@ -16,6 +16,14 @@ interface MultimediaPanelProps {
 export function MultimediaPanel({ className, openModal }: MultimediaPanelProps) {
   const [activeTab, setActiveTab] = useState("summary")
 
+  const generateQuiz = async () => {
+    // TODO: Call /api/generate-quiz
+  };
+
+  const generateFlashcards = async () => {
+    // TODO: Call /api/generate-flashcards  
+  };
+
   return (
     <div className={`flex flex-col ${className} overflow-hidden`}>
       {/* Responsive header */}

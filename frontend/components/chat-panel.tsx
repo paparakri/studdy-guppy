@@ -45,6 +45,10 @@ export function ChatPanel({ className }: ChatPanelProps) {
 
   // Enhanced message sending with typing indicator
   const sendMessage = () => {
+
+    // TODO: Replace existing mock logic with:
+    // const response = await fetch('/api/chat', { ... });
+
     if (input.trim() === "") return
 
     // Add user message with timestamp

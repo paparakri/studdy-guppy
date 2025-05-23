@@ -41,6 +41,13 @@ export function FilePanel({ className }: FilePanelProps) {
   // Enhanced file filtering with better search functionality
   const filteredFiles = files.filter((file) => file.name.toLowerCase().includes(searchQuery.toLowerCase()))
 
+
+  // Add to your existing file-panel.tsx  
+  const uploadFile = async (file: File) => {
+    // TODO: Implement file upload to /api/upload
+  };
+
+
   // Toggle file selection with visual feedback
   const toggleFileSelection = (id: number) => {
     setFiles(files.map((file) => (file.id === id ? { ...file, selected: !file.selected } : file)))
