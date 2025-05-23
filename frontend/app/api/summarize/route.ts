@@ -1,16 +1,23 @@
-// pages/api/summarize.ts
-import type { NextApiRequest, NextApiResponse } from 'next'
+// app/api/summarize/route.ts
+import { NextRequest, NextResponse } from 'next/server'
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+export async function GET() {
+  return NextResponse.json({ 
+    error: 'Method not allowed. Use POST with document data.' 
+  }, { status: 405 });
+}
 
+export async function POST(request: NextRequest) {
   try {
-    const { documentId, summaryType } = req.body;
+    const { documentId, summaryType } = await request.json();
+
+    // Validate input
+    if (!documentId) {
+      return NextResponse.json(
+        { error: 'Document ID is required' },
+        { status: 400 }
+      );
+    }
 
     // TODO: Get document content
     // TODO: Create summarization prompt
@@ -18,12 +25,32 @@ export default async function handler(
     // TODO: Store summary
     // TODO: Return summary with key points
 
-    res.status(200).json({
-      summary: 'Placeholder summary',
-      keyPoints: [],
-      chapters: []
+    return NextResponse.json({
+      summary: 'This is a placeholder summary of your document. It highlights the key concepts and main topics covered.',
+      keyPoints: [
+        'Machine learning is a subset of AI',
+        'There are three main types: supervised, unsupervised, and reinforcement learning',
+        'Neural networks are inspired by the human brain'
+      ],
+      chapters: [
+        {
+          title: 'Introduction',
+          summary: 'Overview of machine learning concepts'
+        },
+        {
+          title: 'Types of ML',
+          summary: 'Detailed breakdown of different approaches'
+        }
+      ],
+      documentId,
+      summaryType: summaryType || 'general',
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
-    res.status(500).json({ error: 'Summarization failed' });
+    console.error('Summarize API Error:', error);
+    return NextResponse.json(
+      { error: 'Summarization failed' },
+      { status: 500 }
+    );
   }
 }

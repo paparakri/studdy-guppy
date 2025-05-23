@@ -1,20 +1,13 @@
-// pages/api/upload.ts
-import type { NextApiRequest, NextApiResponse } from 'next'
+// app/api/upload/route.ts
+import { NextRequest, NextResponse } from 'next/server'
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
+export async function GET() {
+  return NextResponse.json({ 
+    error: 'Method not allowed. Use POST to upload files.' 
+  }, { status: 405 });
 }
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+export async function POST(request: NextRequest) {
   try {
     // TODO: Parse multipart form data
     // TODO: Validate file type (PDF, MP3, MP4, etc.)
@@ -24,12 +17,17 @@ export default async function handler(
     // TODO: Store file metadata in database
     // TODO: Return file ID and processing status
     
-    res.status(200).json({ 
-      fileId: 'placeholder',
+    return NextResponse.json({ 
+      fileId: 'placeholder-file-id',
       status: 'uploaded',
-      message: 'File uploaded successfully' 
+      message: 'File uploaded successfully',
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
-    res.status(500).json({ error: 'Upload failed' });
+    console.error('Upload API Error:', error);
+    return NextResponse.json(
+      { error: 'Upload failed' },
+      { status: 500 }
+    );
   }
 }

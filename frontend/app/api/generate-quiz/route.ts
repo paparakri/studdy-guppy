@@ -1,17 +1,23 @@
-// pages/api/generate-quiz.ts
-import type { NextApiRequest, NextApiResponse } from 'next'
-import type { QuizRequest, QuizResponse } from '@/types/api'
+// app/api/generate-quiz/route.ts
+import { NextRequest, NextResponse } from 'next/server'
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse<QuizResponse>
-) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+export async function GET() {
+  return NextResponse.json({ 
+    error: 'Method not allowed. Use POST with document data.' 
+  }, { status: 405 });
+}
 
+export async function POST(request: NextRequest) {
   try {
-    const { documentId, difficulty, questionCount }: QuizRequest = req.body;
+    const { documentId, difficulty, questionCount } = await request.json();
+
+    // Validate input
+    if (!documentId) {
+      return NextResponse.json(
+        { error: 'Document ID is required' },
+        { status: 400 }
+      );
+    }
 
     // TODO: Get document content from database
     // TODO: Create quiz generation prompt
@@ -20,10 +26,25 @@ export default async function handler(
     // TODO: Store quiz in database
     // TODO: Return structured quiz data
 
-    res.status(200).json({
-      questions: [] // Placeholder
+    return NextResponse.json({
+      questions: [
+        {
+          id: 1,
+          question: "Sample question from your document?",
+          options: ["Option A", "Option B", "Option C", "Option D"],
+          correctAnswer: 0,
+          explanation: "This is a placeholder explanation."
+        }
+      ],
+      documentId,
+      difficulty: difficulty || 'medium',
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
-    res.status(500).json({ error: 'Quiz generation failed' });
+    console.error('Quiz Generation API Error:', error);
+    return NextResponse.json(
+      { error: 'Quiz generation failed' },
+      { status: 500 }
+    );
   }
 }

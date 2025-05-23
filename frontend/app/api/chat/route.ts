@@ -1,17 +1,23 @@
-// pages/api/chat.ts
-import type { NextApiRequest, NextApiResponse } from 'next'
-import type { ChatRequest, ChatResponse } from '@/types/api'
+// app/api/chat/route.ts
+import { NextRequest, NextResponse } from 'next/server'
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse<ChatResponse>
-) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+export async function GET() {
+  return NextResponse.json({ 
+    error: 'Method not allowed. Use POST with message data.' 
+  }, { status: 405 });
+}
 
+export async function POST(request: NextRequest) {
   try {
-    const { message, documentId, userId }: ChatRequest = req.body;
+    const { message, documentId, userId } = await request.json();
+
+    // Validate input
+    if (!message) {
+      return NextResponse.json(
+        { error: 'Message is required' },
+        { status: 400 }
+      );
+    }
 
     // TODO: Get document context from database
     // TODO: Prepare prompt with context
@@ -19,11 +25,15 @@ export default async function handler(
     // TODO: Store chat history
     // TODO: Return AI response
 
-    res.status(200).json({
-      response: 'Placeholder AI response',
+    return NextResponse.json({
+      response: `You said: "${message}". This is a placeholder AI response.`,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    res.status(500).json({ error: 'Chat failed' });
+    console.error('Chat API Error:', error);
+    return NextResponse.json(
+      { error: 'Chat failed' },
+      { status: 500 }
+    );
   }
 }

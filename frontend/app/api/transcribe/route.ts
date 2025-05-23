@@ -1,16 +1,23 @@
-// pages/api/transcribe.ts
-import type { NextApiRequest, NextApiResponse } from 'next'
+// app/api/transcribe/route.ts
+import { NextRequest, NextResponse } from 'next/server'
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+export async function GET() {
+  return NextResponse.json({ 
+    error: 'Method not allowed. Use POST with file data.' 
+  }, { status: 405 });
+}
 
+export async function POST(request: NextRequest) {
   try {
-    const { fileKey, documentId } = req.body;
+    const { fileKey, documentId } = await request.json();
+
+    // Validate input
+    if (!fileKey) {
+      return NextResponse.json(
+        { error: 'File key is required' },
+        { status: 400 }
+      );
+    }
 
     // TODO: Start AWS Transcribe job
     // TODO: Poll for completion or use webhooks
@@ -18,11 +25,19 @@ export default async function handler(
     // TODO: Update document with transcribed text
     // TODO: Trigger text analysis
 
-    res.status(200).json({
+    return NextResponse.json({
       status: 'processing',
-      jobId: 'placeholder'
+      jobId: 'placeholder-transcribe-job-id',
+      fileKey,
+      documentId,
+      estimatedTime: '2-5 minutes',
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
-    res.status(500).json({ error: 'Transcription failed' });
+    console.error('Transcribe API Error:', error);
+    return NextResponse.json(
+      { error: 'Transcription failed' },
+      { status: 500 }
+    );
   }
 }
