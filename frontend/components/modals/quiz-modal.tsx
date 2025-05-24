@@ -1,3 +1,4 @@
+// components/modals/quiz-modal.tsx - COMPLETE FILE
 "use client"
 
 import { useState, useEffect } from "react"
@@ -7,39 +8,38 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { CheckCircle2, XCircle, Trophy, Clock, Loader2, FileText, Settings } from "lucide-react"
+import { CheckCircle2, XCircle, Trophy, Clock, Loader2, FileText, Settings, Brain } from "lucide-react"
+import type { EnhancedQuizQuestion, StudySessionResult, QuestionResult } from '@/types/progress'
 
 interface QuizModalProps {
   onClose: () => void
   selectedDocuments: string[]
 }
 
-interface QuizQuestion {
-  id: number;
-  question: string;
-  options: string[];
-  correctAnswer: number;
-  explanation: string;
-}
-
 export function QuizModal({ onClose, selectedDocuments }: QuizModalProps) {
-  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([])
+  const [quizQuestions, setQuizQuestions] = useState<EnhancedQuizQuestion[]>([])
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [selectedOption, setSelectedOption] = useState<number | null>(null)
   const [answers, setAnswers] = useState<(number | null)[]>([])
+  const [questionResults, setQuestionResults] = useState<QuestionResult[]>([]) // NEW: Track detailed results
   const [showResult, setShowResult] = useState(false)
   const [quizCompleted, setQuizCompleted] = useState(false)
   const [timeRemaining, setTimeRemaining] = useState(300) // 5 minutes
+  const [questionStartTime, setQuestionStartTime] = useState<number>(0) // NEW: Track time per question
+  const [sessionStartTime, setSessionStartTime] = useState<number>(0) // NEW: Track session time
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(true)
+  const [isSubmittingProgress, setIsSubmittingProgress] = useState(false) // NEW: Track progress submission
   
   // Quiz settings
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium')
   const [questionCount, setQuestionCount] = useState(10)
+  const [useAdaptiveLearning, setUseAdaptiveLearning] = useState(true) // NEW: Adaptive learning toggle
 
   const currentQuestion = quizQuestions[currentQuestionIndex]
   const progress = quizQuestions.length > 0 ? ((currentQuestionIndex + 1) / quizQuestions.length) * 100 : 0
+  const userId = 'default-user' // For hackathon - in real app, get from auth
 
   // Timer effect
   useEffect(() => {
@@ -58,6 +58,13 @@ export function QuizModal({ onClose, selectedDocuments }: QuizModalProps) {
     }
   }, [quizQuestions.length, quizCompleted, showSettings])
 
+  // Track question start time when question changes
+  useEffect(() => {
+    if (!showSettings && !showResult && currentQuestion) {
+      setQuestionStartTime(Date.now())
+    }
+  }, [currentQuestionIndex, showSettings, showResult, currentQuestion])
+
   const generateQuiz = async () => {
     if (selectedDocuments.length === 0) {
       setError('Please select documents to generate a quiz')
@@ -67,6 +74,7 @@ export function QuizModal({ onClose, selectedDocuments }: QuizModalProps) {
     setIsLoading(true)
     setError(null)
     setShowSettings(false)
+    setSessionStartTime(Date.now()) // Start tracking session time
 
     try {
       const response = await fetch('/api/generate-quiz', {
@@ -75,7 +83,9 @@ export function QuizModal({ onClose, selectedDocuments }: QuizModalProps) {
         body: JSON.stringify({
           documentIds: selectedDocuments,
           difficulty,
-          questionCount
+          questionCount,
+          userId, // NEW: Pass user ID for adaptive learning
+          useAdaptiveLearning // NEW: Enable adaptive learning
         })
       })
 
@@ -84,11 +94,13 @@ export function QuizModal({ onClose, selectedDocuments }: QuizModalProps) {
       if (response.ok) {
         setQuizQuestions(data.questions || [])
         setAnswers(Array(data.questions?.length || 0).fill(null))
+        setQuestionResults([]) // Reset question results
         setCurrentQuestionIndex(0)
         setSelectedOption(null)
         setShowResult(false)
         setQuizCompleted(false)
         setTimeRemaining(questionCount * 30) // 30 seconds per question
+        setQuestionStartTime(Date.now())
       } else {
         setError(data.error || 'Failed to generate quiz')
         setShowSettings(true)
@@ -107,8 +119,32 @@ export function QuizModal({ onClose, selectedDocuments }: QuizModalProps) {
     setSelectedOption(Number.parseInt(value))
   }
 
-  // Enhanced next question logic with better UX
+  // Enhanced next question logic with progress tracking
   const nextQuestion = () => {
+    if (!currentQuestion || selectedOption === null) return
+
+    // Calculate time spent on this question
+    const timeSpent = Math.round((Date.now() - questionStartTime) / 1000)
+    
+    // Create question result for progress tracking
+    const questionResult: QuestionResult = {
+      questionId: currentQuestion.id.toString(),
+      question: currentQuestion.question,
+      userAnswer: selectedOption,
+      correctAnswer: currentQuestion.correctAnswer,
+      isCorrect: selectedOption === currentQuestion.correctAnswer,
+      chapterId: currentQuestion.chapterId,
+      chapterTitle: currentQuestion.chapterTitle,
+      topicName: currentQuestion.topicName,
+      difficulty: currentQuestion.difficulty,
+      timeSpent,
+      timestamp: new Date().toISOString()
+    }
+
+    // Add to question results
+    setQuestionResults(prev => [...prev, questionResult])
+
+    // Update answers array
     const newAnswers = [...answers]
     newAnswers[currentQuestionIndex] = selectedOption
     setAnswers(newAnswers)
@@ -122,23 +158,92 @@ export function QuizModal({ onClose, selectedDocuments }: QuizModalProps) {
         setCurrentQuestionIndex((prev) => prev + 1)
         setSelectedOption(null)
       } else {
-        setQuizCompleted(true)
+        completeQuiz()
       }
     }, 2000)
+  }
+
+  // NEW: Complete quiz and submit progress
+  const completeQuiz = async () => {
+    setQuizCompleted(true)
+    setIsSubmittingProgress(true)
+
+    try {
+      // Calculate session metrics
+      const totalSessionTime = Math.round((Date.now() - sessionStartTime) / 1000)
+      const correctAnswers = questionResults.filter(result => result.isCorrect).length
+
+      // Create session result for progress tracking
+      const sessionResult: StudySessionResult = {
+        sessionId: `quiz_${Date.now()}`,
+        userId,
+        sessionType: 'quiz',
+        documentIds: selectedDocuments,
+        questionResults,
+        totalQuestions: quizQuestions.length,
+        correctAnswers,
+        accuracy: (correctAnswers / quizQuestions.length) * 100,
+        timeSpent: totalSessionTime,
+        completedAt: new Date().toISOString(),
+        difficulty
+      }
+
+      // Submit progress to API
+      const progressResponse = await fetch('/api/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          sessionResult
+        })
+      })
+
+      if (progressResponse.ok) {
+        const progressData = await progressResponse.json()
+        console.log('Progress updated successfully:', progressData)
+        
+        // Show achievements if any
+        if (progressData.newAchievements?.length > 0) {
+          // You could show a toast or modal for achievements
+          console.log('New achievements unlocked:', progressData.newAchievements)
+        }
+      } else {
+        console.error('Failed to update progress')
+      }
+    } catch (error) {
+      console.error('Failed to submit progress:', error)
+    } finally {
+      setIsSubmittingProgress(false)
+    }
   }
 
   // Enhanced score calculation with detailed analytics
   const calculateScore = () => {
     let correctCount = 0
-    answers.forEach((answer, index) => {
-      if (answer === quizQuestions[index]?.correctAnswer) {
+    const chapterBreakdown: Record<string, { correct: number, total: number }> = {}
+    
+    questionResults.forEach((result) => {
+      if (result.isCorrect) {
         correctCount++
       }
+      
+      // Track by chapter
+      if (result.chapterId) {
+        if (!chapterBreakdown[result.chapterId]) {
+          chapterBreakdown[result.chapterId] = { correct: 0, total: 0 }
+        }
+        chapterBreakdown[result.chapterId].total++
+        if (result.isCorrect) {
+          chapterBreakdown[result.chapterId].correct++
+        }
+      }
     })
+
     return {
       score: correctCount,
       total: quizQuestions.length,
       percentage: Math.round((correctCount / quizQuestions.length) * 100),
+      chapterBreakdown
     }
   }
 
@@ -160,10 +265,12 @@ export function QuizModal({ onClose, selectedDocuments }: QuizModalProps) {
     setCurrentQuestionIndex(0)
     setSelectedOption(null)
     setAnswers([])
+    setQuestionResults([])
     setShowResult(false)
     setQuizCompleted(false)
     setTimeRemaining(300)
     setError(null)
+    setIsSubmittingProgress(false)
   }
 
   return (
@@ -172,13 +279,14 @@ export function QuizModal({ onClose, selectedDocuments }: QuizModalProps) {
         <DialogHeader className="pb-6 border-b border-white/10">
           <div className="flex items-center justify-between">
             <div>
-              <DialogTitle className="text-2xl font-bold gradient-text">
-                {showSettings ? 'Quiz Settings' : 'Interactive Quiz'}
+              <DialogTitle className="text-2xl font-bold gradient-text flex items-center gap-2">
+                {useAdaptiveLearning && <Brain className="h-6 w-6 text-cyan-400" />}
+                {showSettings ? 'Smart Quiz Settings' : 'Interactive Quiz'}
               </DialogTitle>
               <p className="text-sm text-gray-400 mt-1">
                 {showSettings 
-                  ? `Generate a quiz from ${selectedDocuments.length} selected document${selectedDocuments.length > 1 ? 's' : ''}`
-                  : 'Test your knowledge'
+                  ? `Generate an ${useAdaptiveLearning ? 'adaptive' : 'standard'} quiz from ${selectedDocuments.length} selected document${selectedDocuments.length > 1 ? 's' : ''}`
+                  : useAdaptiveLearning ? 'AI-powered adaptive learning quiz' : 'Test your knowledge'
                 }
               </p>
             </div>
@@ -193,7 +301,7 @@ export function QuizModal({ onClose, selectedDocuments }: QuizModalProps) {
           </div>
         </DialogHeader>
 
-        {/* Show settings screen */}
+        {/* Enhanced settings screen with adaptive learning toggle */}
         {showSettings && (
           <div className="py-6">
             {selectedDocuments.length === 0 ? (
@@ -208,6 +316,32 @@ export function QuizModal({ onClose, selectedDocuments }: QuizModalProps) {
               </div>
             ) : (
               <div className="space-y-6">
+                {/* Adaptive Learning Toggle */}
+                <div className="bg-gradient-to-r from-cyan-500/10 to-teal-500/10 rounded-xl p-4 border border-cyan-400/20">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-medium text-cyan-300 flex items-center gap-2">
+                        <Brain className="h-4 w-4" />
+                        Adaptive Learning
+                      </h4>
+                      <p className="text-xs text-gray-400 mt-1">
+                        AI personalizes questions based on your progress and weak areas
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => setUseAdaptiveLearning(!useAdaptiveLearning)}
+                      variant={useAdaptiveLearning ? "default" : "outline"}
+                      size="sm"
+                      className={useAdaptiveLearning 
+                        ? "bg-gradient-to-r from-cyan-600 to-teal-600 text-white" 
+                        : "border-cyan-400/30 text-cyan-300 hover:bg-cyan-500/10"
+                      }
+                    >
+                      {useAdaptiveLearning ? 'ON' : 'OFF'}
+                    </Button>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-300 mb-2 block">Difficulty Level</label>
@@ -256,20 +390,28 @@ export function QuizModal({ onClose, selectedDocuments }: QuizModalProps) {
           </div>
         )}
 
-        {/* Show loading state */}
+        {/* Show loading state with progress indicator */}
         {isLoading && (
           <div className="py-8">
             <div className="text-center">
-              <Loader2 className="h-12 w-12 text-cyan-400 animate-spin mx-auto mb-4" />
-              <h3 className="text-lg font-bold mb-2 gradient-text">Generating Quiz</h3>
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <Loader2 className="h-8 w-8 text-cyan-400 animate-spin" />
+                {useAdaptiveLearning && <Brain className="h-8 w-8 text-teal-400 animate-pulse" />}
+              </div>
+              <h3 className="text-lg font-bold mb-2 gradient-text">
+                {useAdaptiveLearning ? 'Creating Adaptive Quiz' : 'Generating Quiz'}
+              </h3>
               <p className="text-sm text-gray-400">
-                Creating {questionCount} {difficulty} questions from your documents...
+                {useAdaptiveLearning 
+                  ? `AI is analyzing your progress and creating personalized ${questionCount} ${difficulty} questions...`
+                  : `Creating ${questionCount} ${difficulty} questions from your documents...`
+                }
               </p>
             </div>
           </div>
         )}
 
-        {/* Show quiz questions */}
+        {/* Show quiz questions - THIS WAS MISSING! */}
         {!quizCompleted && !showSettings && !isLoading && quizQuestions.length > 0 && (
           <>
             {/* Enhanced progress section */}
@@ -348,7 +490,7 @@ export function QuizModal({ onClose, selectedDocuments }: QuizModalProps) {
           </>
         )}
 
-        {/* Show results */}
+        {/* Enhanced results with chapter breakdown */}
         {quizCompleted && quizQuestions.length > 0 && (
           <div className="py-8">
             <div className="text-center">
@@ -372,6 +514,31 @@ export function QuizModal({ onClose, selectedDocuments }: QuizModalProps) {
                     <p className="text-gray-400 mb-8">
                       You got {result.score} out of {result.total} questions correct.
                     </p>
+
+                    {/* Progress submission indicator */}
+                    {isSubmittingProgress && (
+                      <div className="mb-6 text-sm text-cyan-400 flex items-center justify-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Updating your progress...
+                      </div>
+                    )}
+
+                    {/* Chapter breakdown if available */}
+                    {Object.keys(result.chapterBreakdown).length > 0 && (
+                      <div className="bg-gray-800/30 rounded-xl p-4 mb-6">
+                        <h4 className="text-sm font-medium text-gray-300 mb-3">Performance by Chapter:</h4>
+                        <div className="space-y-2">
+                          {Object.entries(result.chapterBreakdown).map(([chapterId, data]) => (
+                            <div key={chapterId} className="flex justify-between text-xs">
+                              <span className="text-gray-400">{chapterId}</span>
+                              <span className={data.correct / data.total >= 0.7 ? 'text-green-400' : 'text-yellow-400'}>
+                                {data.correct}/{data.total} ({Math.round((data.correct / data.total) * 100)}%)
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Detailed breakdown */}
                     <div className="grid grid-cols-3 gap-4 mb-8">
@@ -410,6 +577,7 @@ export function QuizModal({ onClose, selectedDocuments }: QuizModalProps) {
                 disabled={selectedDocuments.length === 0}
                 className="btn-modern bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white rounded-xl px-6 py-3 shadow-modern transition-all duration-300 hover:shadow-modern-lg"
               >
+                {useAdaptiveLearning && <Brain className="h-4 w-4 mr-2" />}
                 <Settings className="h-4 w-4 mr-2" />
                 Generate Quiz
               </Button>
