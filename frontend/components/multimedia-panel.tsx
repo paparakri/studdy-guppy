@@ -40,8 +40,8 @@ export function MultimediaPanel({ className, openModal, selectedDocuments }: Mul
         </div>
       </div>
 
-      {/* Responsive tabs */}
-      <Tabs defaultValue="summary" className="flex-1 flex flex-col" value={activeTab} onValueChange={setActiveTab}>
+      {/* Responsive tabs - FIXED: Added proper height constraints */}
+      <Tabs defaultValue="summary" className="flex-1 flex flex-col overflow-hidden" value={activeTab} onValueChange={setActiveTab}>
         <div className="border-b border-white/10 px-4 flex-shrink-0">
           <TabsList className="bg-transparent w-full justify-start gap-1 pt-3 pb-2">
             <TabsTrigger
@@ -68,16 +68,16 @@ export function MultimediaPanel({ className, openModal, selectedDocuments }: Mul
           </TabsList>
         </div>
 
-        {/* Tab content */}
-        <TabsContent value="summary" className="flex-1 m-0">
+        {/* Tab content - FIXED: Added proper height constraints and overflow handling */}
+        <TabsContent value="summary" className="flex-1 m-0 overflow-hidden">
           <SummaryView selectedDocuments={selectedDocuments} />
         </TabsContent>
 
-        <TabsContent value="flashcards" className="flex-1 m-0">
+        <TabsContent value="flashcards" className="flex-1 m-0 overflow-hidden">
           <FlashcardView selectedDocuments={selectedDocuments} />
         </TabsContent>
 
-        <TabsContent value="quizzes" className="flex-1 m-0 p-4">
+        <TabsContent value="quizzes" className="flex-1 m-0 overflow-hidden p-4">
           {/* Responsive quiz tab content */}
           <div className="flex flex-col items-center justify-center h-full">
             <div className="card-modern bg-gray-800/30 backdrop-blur-sm border border-white/10 rounded-2xl p-6 text-center shadow-modern w-full max-w-sm">
@@ -108,7 +108,7 @@ export function MultimediaPanel({ className, openModal, selectedDocuments }: Mul
 
       {/* Responsive quick access buttons */}
       <div className="p-3 border-t border-white/10 bg-gray-900/30 backdrop-blur-sm flex-shrink-0">
-        <div className="grid grid-cols-4 gap-1">
+        <div className="grid grid-cols-3 gap-1">
           <Button
             variant="ghost"
             size="sm"
@@ -131,17 +131,6 @@ export function MultimediaPanel({ className, openModal, selectedDocuments }: Mul
               <FileQuestion className="h-3 w-3 text-teal-400" />
             </div>
             <span className="text-xs font-medium">Quiz</span>
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            className="btn-modern flex flex-col items-center h-auto py-2 hover:bg-gradient-to-br hover:from-cyan-500/10 hover:to-teal-500/10 rounded-xl transition-all duration-300 group"
-          >
-            <div className="w-6 h-6 bg-cyan-500/20 rounded-lg flex items-center justify-center mb-1 group-hover:bg-cyan-500/30 transition-all duration-300">
-              <FlaskConical className="h-3 w-3 text-cyan-400" />
-            </div>
-            <span className="text-xs font-medium">Test</span>
           </Button>
 
           <Button
