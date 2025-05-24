@@ -3,6 +3,7 @@ import { BedrockRuntime } from '@aws-sdk/client-bedrock-runtime';
 import { S3Client } from '@aws-sdk/client-s3';
 import { TranscribeClient } from '@aws-sdk/client-transcribe';
 import { PollyClient } from '@aws-sdk/client-polly';
+import { ComprehendClient } from '@aws-sdk/client-comprehend';
 
 // Validate environment variables
 if (!process.env.AWS_ACCESS_KEY_ID) {
@@ -30,6 +31,7 @@ export const bedrockClient = new BedrockRuntime(awsConfig);
 export const s3Client = new S3Client(awsConfig);
 export const transcribeClient = new TranscribeClient(awsConfig);
 export const pollyClient = new PollyClient(awsConfig);
+export const comprehendClient = new ComprehendClient(awsConfig);
 
 // Helper function for Claude
 export async function callClaude(prompt: string, maxTokens: number = 1000): Promise<string> {

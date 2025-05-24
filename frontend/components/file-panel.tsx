@@ -1,87 +1,149 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Search, Upload, File, FileText, FileAudio, FileVideo, Plus, FolderPlus, Loader2 } from 'lucide-react'
+import { Search, Upload, File, FileText, FileAudio, FileVideo, Plus, FolderPlus, Loader2, Clock, CheckCircle, AlertCircle } from 'lucide-react'
 
 interface FilePanelProps {
   className?: string
-  onSelectedDocumentsChange: (selectedDocs: string[]) => void // Expects string array
+  onSelectedDocumentsChange: (selectedDocs: string[]) => void
 }
 
-// Enhanced mock file data with additional metadata for better UI representation
-const mockFiles: {
-  id: number;
+interface FileItem {
+  id: string;
   name: string;
   type: string;
   selected: boolean;
   size: string;
-}[] = []
+  lastModified: string;
+  status: 'uploaded' | 'processed' | 'transcribing' | 'transcription_error' | 'pdf_error';
+  hasText: boolean;
+  isTranscribing?: boolean;
+  transcriptionJobName?: string;
+  textPreview?: string;
+}
 
-// Fix: Add onSelectedDocumentsChange to the destructured props
+const mockFiles: FileItem[] = []
+
 export function FilePanel({ className, onSelectedDocumentsChange }: FilePanelProps) {
-  const [files, setFiles] = useState(mockFiles)
+  const [files, setFiles] = useState<FileItem[]>(mockFiles)
   const [searchQuery, setSearchQuery] = useState("")
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<string>('')
   
   useEffect(() => {
-    // Fix: Convert numbers to strings to match the expected type
     const selectedDocIds = files
       .filter(file => file.selected)
-      .map(file => file.id.toString()) // Convert to string
-      onSelectedDocumentsChange(selectedDocIds)
+      .map(file => file.id)
+    onSelectedDocumentsChange(selectedDocIds)
   }, [files, onSelectedDocumentsChange])
 
-// Enhanced file filtering with better search functionality
-  const filteredFiles = files.filter((file) => file.name.toLowerCase().includes(searchQuery.toLowerCase()))
+  // Poll for transcription status
+  useEffect(() => {
+    const transcribingFiles = files.filter(file => file.status === 'transcribing' && file.transcriptionJobName);
+    
+    if (transcribingFiles.length === 0) return;
 
-  // Add to your existing file-panel.tsx  
+    const interval = setInterval(async () => {
+      for (const file of transcribingFiles) {
+        try {
+          const response = await fetch(`/api/transcription-status?jobName=${file.transcriptionJobName}&documentId=${file.id}`);
+          const result = await response.json();
+
+          if (result.status === 'completed') {
+            setFiles(prevFiles => 
+              prevFiles.map(f => 
+                f.id === file.id 
+                  ? { 
+                      ...f, 
+                      status: 'processed', 
+                      hasText: true, 
+                      textPreview: result.textPreview,
+                      isTranscribing: false 
+                    }
+                  : f
+              )
+            );
+          } else if (result.status === 'failed') {
+            setFiles(prevFiles => 
+              prevFiles.map(f => 
+                f.id === file.id 
+                  ? { 
+                      ...f, 
+                      status: 'transcription_error', 
+                      isTranscribing: false 
+                    }
+                  : f
+              )
+            );
+          }
+        } catch (error) {
+          console.error(`Failed to check transcription status for ${file.id}:`, error);
+        }
+      }
+    }, 5000); // Poll every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [files]);
+
+  const filteredFiles = files.filter((file) => 
+    file.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
-  
+
     setIsUploading(true)
     setUploadProgress('Uploading file...')
-  
+
     try {
       const formData = new FormData()
       formData.append('file', file)
-  
+
       const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData
       })
-  
+
       const result = await response.json()
-  
+
       if (response.ok) {
-        setUploadProgress('Processing file...')
+        const isVideoOrAudio = result.fileType === 'video' || result.fileType === 'audio';
         
-        // Add the new file to your files state
-        const newFile = {
+        if (result.status === 'transcribing') {
+          setUploadProgress('Starting transcription...')
+        } else {
+          setUploadProgress('Processing file...')
+        }
+        
+        const newFile: FileItem = {
           id: result.documentId,
           name: result.fileName,
-          type: file.type.includes('pdf') ? 'pdf' : 
-                file.type.includes('video') ? 'video' :
-                file.type.includes('audio') ? 'audio' : 'text',
+          type: result.fileType,
           selected: true,
           size: (file.size / 1024 / 1024).toFixed(1) + ' MB',
           lastModified: 'Just now',
           status: result.status,
-          hasText: result.hasText
+          hasText: result.hasText,
+          isTranscribing: result.isTranscribing,
+          transcriptionJobName: result.transcriptionJobName,
+          textPreview: result.textPreview
         }
-  
+
         setFiles(prevFiles => [...prevFiles, newFile])
-        setUploadProgress('File uploaded successfully!')
         
-        // Clear the input
+        if (result.status === 'transcribing') {
+          setUploadProgress('File uploaded! Transcription in progress...')
+        } else {
+          setUploadProgress('File uploaded successfully!')
+        }
+        
         event.target.value = ''
-        
-        setTimeout(() => setUploadProgress(''), 2000)
+        setTimeout(() => setUploadProgress(''), 3000)
       } else {
         setUploadProgress(`Upload failed: ${result.error}`)
       }
@@ -93,12 +155,12 @@ export function FilePanel({ className, onSelectedDocumentsChange }: FilePanelPro
     }
   }
 
-  // Toggle file selection with visual feedback
-  const toggleFileSelection = (id: number) => {
-    setFiles(files.map((file) => (file.id === id ? { ...file, selected: !file.selected } : file)))
+  const toggleFileSelection = (id: string) => {
+    setFiles(files.map((file) => 
+      file.id === id ? { ...file, selected: !file.selected } : file
+    ))
   }
 
-  // Enhanced file icon system with better visual distinction
   const getFileIcon = (type: string) => {
     const iconProps = "h-4 w-4"
     switch (type) {
@@ -113,7 +175,6 @@ export function FilePanel({ className, onSelectedDocumentsChange }: FilePanelPro
     }
   }
 
-  // Get file type color for visual consistency
   const getFileTypeColor = (type: string) => {
     switch (type) {
       case "pdf":
@@ -127,9 +188,38 @@ export function FilePanel({ className, onSelectedDocumentsChange }: FilePanelPro
     }
   }
 
+  const getStatusIcon = (file: FileItem) => {
+    switch (file.status) {
+      case 'transcribing':
+        return <Loader2 className="h-3 w-3 text-blue-400 animate-spin" />
+      case 'processed':
+        return <CheckCircle className="h-3 w-3 text-green-400" />
+      case 'transcription_error':
+      case 'pdf_error':
+        return <AlertCircle className="h-3 w-3 text-red-400" />
+      default:
+        return null
+    }
+  }
+
+  const getStatusText = (file: FileItem) => {
+    switch (file.status) {
+      case 'transcribing':
+        return 'Transcribing...'
+      case 'processed':
+        return 'Ready'
+      case 'transcription_error':
+        return 'Transcription failed'
+      case 'pdf_error':
+        return 'Processing failed'
+      default:
+        return 'Uploaded'
+    }
+  }
+
   return (
     <div className={`flex flex-col ${className} overflow-hidden`}>
-      {/* Header section with responsive design */}
+      {/* Header section */}
       <div className="p-4 border-b border-white/10 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold gradient-text truncate">Study Materials</h2>
@@ -140,7 +230,7 @@ export function FilePanel({ className, onSelectedDocumentsChange }: FilePanelPro
           </div>
         </div>
 
-        {/* Responsive search input */}
+        {/* Search input */}
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
@@ -151,14 +241,14 @@ export function FilePanel({ className, onSelectedDocumentsChange }: FilePanelPro
           />
         </div>
 
-        {/* Enhanced action buttons with real file upload */}
+        {/* Action buttons */}
         <div className="flex gap-2">
           <div className="flex-1 relative">
             <input
               type="file"
               id="file-upload"
               className="hidden"
-              accept=".pdf,.mp3,.mp4,.txt,.docx"
+              accept=".pdf,.mp3,.mp4,.txt,.docx,.wav,.aac,.m4a,.ogg,.flac,.mov,.avi,.mkv,.webm,.m4v"
               onChange={handleFileUpload}
               disabled={isUploading}
             />
@@ -192,7 +282,7 @@ export function FilePanel({ className, onSelectedDocumentsChange }: FilePanelPro
           <div className="mt-2 text-xs text-center">
             <span className={`${
               uploadProgress.includes('failed') ? 'text-red-400' : 
-              uploadProgress.includes('success') ? 'text-green-400' : 'text-cyan-400'
+              uploadProgress.includes('success') || uploadProgress.includes('Transcription in progress') ? 'text-green-400' : 'text-cyan-400'
             }`}>
               {uploadProgress}
             </span>
@@ -200,7 +290,7 @@ export function FilePanel({ className, onSelectedDocumentsChange }: FilePanelPro
         )}
       </div>
 
-      {/* File list section with responsive design */}
+      {/* File list section */}
       <ScrollArea className="flex-1">
         <div className="p-4">
           <div className="flex justify-between items-center mb-3">
@@ -211,7 +301,7 @@ export function FilePanel({ className, onSelectedDocumentsChange }: FilePanelPro
             </button>
           </div>
 
-          {/* Responsive file list */}
+          {/* File list */}
           <div className="space-y-2">
             {filteredFiles.map((file) => (
               <div
@@ -234,7 +324,7 @@ export function FilePanel({ className, onSelectedDocumentsChange }: FilePanelPro
                   {/* File icon */}
                   <div className="flex-shrink-0 mt-0.5">{getFileIcon(file.type)}</div>
 
-                  {/* File information with responsive layout */}
+                  {/* File information */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="font-medium text-gray-100 truncate group-hover:text-white transition-colors duration-300 text-sm">
@@ -250,6 +340,25 @@ export function FilePanel({ className, onSelectedDocumentsChange }: FilePanelPro
                       <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
                       <span>{file.lastModified}</span>
                     </div>
+
+                    {/* Status indicator */}
+                    <div className="flex items-center gap-1 mt-1">
+                      {getStatusIcon(file)}
+                      <span className={`text-xs ${
+                        file.status === 'processed' ? 'text-green-400' :
+                        file.status === 'transcribing' ? 'text-blue-400' :
+                        file.status.includes('error') ? 'text-red-400' : 'text-gray-400'
+                      }`}>
+                        {getStatusText(file)}
+                      </span>
+                    </div>
+
+                    {/* Text preview for processed files */}
+                    {file.hasText && file.textPreview && file.status === 'processed' && (
+                      <div className="mt-2 text-xs text-gray-500 bg-gray-900/50 rounded-lg p-2 border border-white/5">
+                        <div className="line-clamp-2">{file.textPreview}</div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -267,7 +376,14 @@ export function FilePanel({ className, onSelectedDocumentsChange }: FilePanelPro
               <div className="w-12 h-12 bg-gray-800/50 rounded-2xl flex items-center justify-center mx-auto mb-3">
                 <Search className="h-6 w-6 text-gray-500" />
               </div>
-              <p className="text-gray-400 text-sm">No files found.</p>
+              <p className="text-gray-400 text-sm">
+                {searchQuery ? 'No files found.' : 'Upload your first study material to get started.'}
+              </p>
+              {!searchQuery && (
+                <p className="text-gray-500 text-xs mt-1">
+                  Supports PDFs, videos, audio files, and text documents
+                </p>
+              )}
             </div>
           )}
         </div>
