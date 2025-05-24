@@ -42,6 +42,12 @@ export function MainLayout() {
   const [isResizingLeft, setIsResizingLeft] = useState(false)
   const [isResizingRight, setIsResizingRight] = useState(false)
 
+  const [selectedDocuments, setSelectedDocuments] = useState<string[]>([])
+
+  const handleSelectedDocumentsChange = useCallback((selectedDocs: string[]) => {
+    setSelectedDocuments(selectedDocs)
+  }, [])
+
   // Modal control functions with proper typing
   const openModal = (modal: ModalType) => {
     setActiveModal(modal)
@@ -97,7 +103,10 @@ export function MainLayout() {
           style={{ width: `${leftPanelWidth}%` }}
         >
           <div className="h-full p-1 pl-1 pr-0">
-            <FilePanel className="h-full bg-gray-900/50 backdrop-blur-sm border border-white/10 rounded-2xl shadow-modern overflow-hidden" />
+            <FilePanel 
+            className="h-full bg-gray-900/50 backdrop-blur-sm border border-white/10 rounded-2xl shadow-modern overflow-hidden"
+              onSelectedDocumentsChange={handleSelectedDocumentsChange}
+            />
           </div>
         </div>
 

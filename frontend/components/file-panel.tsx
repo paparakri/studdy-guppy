@@ -1,14 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Search, Upload, File, FileText, FileAudio, FileVideo, Plus, FolderPlus } from 'lucide-react'
+import { Search, Upload, File, FileText, FileAudio, FileVideo, Plus, FolderPlus, Loader2 } from 'lucide-react'
 
 interface FilePanelProps {
   className?: string
+  onSelectedDocumentsChange: (selectedDocs: string[]) => void // Expects string array
 }
 
 // Enhanced mock file data with additional metadata for better UI representation
@@ -34,19 +35,77 @@ const mockFiles = [
   { id: 5, name: "Organic Chemistry.pdf", type: "pdf", selected: false, size: "3.7 MB", lastModified: "2w ago" },
 ]
 
-export function FilePanel({ className }: FilePanelProps) {
+// Fix: Add onSelectedDocumentsChange to the destructured props
+export function FilePanel({ className, onSelectedDocumentsChange }: FilePanelProps) {
   const [files, setFiles] = useState(mockFiles)
   const [searchQuery, setSearchQuery] = useState("")
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<string>('')
+  
+  useEffect(() => {
+    // Fix: Convert numbers to strings to match the expected type
+    const selectedDocIds = files
+      .filter(file => file.selected)
+      .map(file => file.id.toString()) // Convert to string
+      onSelectedDocumentsChange(selectedDocIds)
+  }, [files, onSelectedDocumentsChange])
 
-  // Enhanced file filtering with better search functionality
+// Enhanced file filtering with better search functionality
   const filteredFiles = files.filter((file) => file.name.toLowerCase().includes(searchQuery.toLowerCase()))
 
-
   // Add to your existing file-panel.tsx  
-  const uploadFile = async (file: File) => {
-    // TODO: Implement file upload to /api/upload
-  };
-
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+  
+    setIsUploading(true)
+    setUploadProgress('Uploading file...')
+  
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+  
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      })
+  
+      const result = await response.json()
+  
+      if (response.ok) {
+        setUploadProgress('Processing file...')
+        
+        // Add the new file to your files state
+        const newFile = {
+          id: result.documentId,
+          name: result.fileName,
+          type: file.type.includes('pdf') ? 'pdf' : 
+                file.type.includes('video') ? 'video' :
+                file.type.includes('audio') ? 'audio' : 'text',
+          selected: true,
+          size: (file.size / 1024 / 1024).toFixed(1) + ' MB',
+          lastModified: 'Just now',
+          status: result.status,
+          hasText: result.hasText
+        }
+  
+        setFiles(prevFiles => [...prevFiles, newFile])
+        setUploadProgress('File uploaded successfully!')
+        
+        // Clear the input
+        event.target.value = ''
+        
+        setTimeout(() => setUploadProgress(''), 2000)
+      } else {
+        setUploadProgress(`Upload failed: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('Upload error:', error)
+      setUploadProgress('Upload failed: Network error')
+    } finally {
+      setIsUploading(false)
+    }
+  }
 
   // Toggle file selection with visual feedback
   const toggleFileSelection = (id: number) => {
@@ -106,19 +165,53 @@ export function FilePanel({ className }: FilePanelProps) {
           />
         </div>
 
-        {/* Responsive action buttons */}
+        {/* Enhanced action buttons with real file upload */}
         <div className="flex gap-2">
-          <Button className="flex-1 btn-modern bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white rounded-xl py-2 shadow-modern transition-all duration-300 hover:shadow-modern-lg text-sm">
-            <Upload className="h-4 w-4 mr-1" />
-            <span className="hidden sm:inline">Upload</span>
-          </Button>
+          <div className="flex-1 relative">
+            <input
+              type="file"
+              id="file-upload"
+              className="hidden"
+              accept=".pdf,.mp3,.mp4,.txt,.docx"
+              onChange={handleFileUpload}
+              disabled={isUploading}
+            />
+            <Button 
+              className="w-full btn-modern bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white rounded-xl py-2 shadow-modern transition-all duration-300 hover:shadow-modern-lg text-sm disabled:opacity-50"
+              onClick={() => document.getElementById('file-upload')?.click()}
+              disabled={isUploading}
+            >
+              {isUploading ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4 mr-1" />
+              )}
+              <span className="hidden sm:inline">
+                {isUploading ? 'Uploading...' : 'Upload'}
+              </span>
+            </Button>
+          </div>
+          
           <Button
             variant="outline"
             className="btn-modern border-white/20 hover:bg-white/10 rounded-xl px-3 py-2 transition-all duration-300"
+            disabled={isUploading}
           >
             <FolderPlus className="h-4 w-4" />
           </Button>
         </div>
+
+        {/* Upload progress indicator */}
+        {uploadProgress && (
+          <div className="mt-2 text-xs text-center">
+            <span className={`${
+              uploadProgress.includes('failed') ? 'text-red-400' : 
+              uploadProgress.includes('success') ? 'text-green-400' : 'text-cyan-400'
+            }`}>
+              {uploadProgress}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* File list section with responsive design */}
