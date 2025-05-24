@@ -1,31 +1,40 @@
-// app/api/progress/route.ts
-import { NextRequest, NextResponse } from 'next/server'
+// app/api/progress/route.ts - MODIFIED FILE
+import { NextRequest, NextResponse } from 'next/server';
+import { progressStorage, progressCalculator } from '@/lib/progress-utils';
+import type { 
+  ProgressUpdateRequest, 
+  GetProgressResponse, 
+  UpdateProgressResponse,
+  StudySessionResult 
+} from '@/types/progress';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    const userId = searchParams.get('userId') || 'default-user'; // Default for hackathon
 
-    // TODO: Get user progress data
-    // TODO: Calculate completion percentages
-    // TODO: Get quiz scores and history
-    // TODO: Return progress analytics
+    // Get user progress
+    let userProgress = await progressStorage.getUserProgress(userId);
     
-    return NextResponse.json({
-      overall: 75,
-      byDocument: {
-        'doc1': 100,
-        'doc2': 50,
-        'doc3': 25
-      },
-      quizScores: [
-        { date: '2025-01-24', score: 8, total: 10, topic: 'Machine Learning' },
-        { date: '2025-01-23', score: 6, total: 10, topic: 'Data Structures' }
-      ],
-      studyTime: 120, // minutes
-      streak: 3, // days
+    // Create initial progress if doesn't exist
+    if (!userProgress) {
+      userProgress = progressCalculator.createInitialUserProgress(userId);
+      await progressStorage.saveUserProgress(userProgress);
+    }
+
+    // Get recent session history
+    const recentSessions = await progressStorage.getSessionHistory(userId);
+
+    // Generate analytics
+    const analytics = progressCalculator.generateProgressAnalytics(userProgress, recentSessions);
+
+    const response: GetProgressResponse = {
+      userProgress,
+      analytics,
       timestamp: new Date().toISOString()
-    });
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Progress GET API Error:', error);
     return NextResponse.json(
@@ -37,16 +46,37 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, sessionData } = await request.json();
+    const requestData: ProgressUpdateRequest = await request.json();
+    const { userId, sessionResult } = requestData;
 
-    // TODO: Update progress (quiz completion, study time, etc.)
-    // TODO: Store in database
+    // Get current progress
+    let currentProgress = await progressStorage.getUserProgress(userId);
     
-    return NextResponse.json({ 
+    // Create initial progress if doesn't exist
+    if (!currentProgress) {
+      currentProgress = progressCalculator.createInitialUserProgress(userId);
+    }
+
+    // Update progress with new session
+    const updatedProgress = progressCalculator.updateProgressWithSession(currentProgress, sessionResult);
+
+    // Save updated progress
+    await progressStorage.saveUserProgress(updatedProgress);
+
+    // Add session to history
+    await progressStorage.addSessionToHistory(userId, sessionResult);
+
+    // Check for new achievements (simplified)
+    const newAchievements = checkForNewAchievements(currentProgress, updatedProgress);
+
+    const response: UpdateProgressResponse = {
       success: true,
-      message: 'Progress updated successfully',
+      updatedProgress,
+      newAchievements: newAchievements.length > 0 ? newAchievements : undefined,
       timestamp: new Date().toISOString()
-    });
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Progress POST API Error:', error);
     return NextResponse.json(
@@ -54,4 +84,38 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// Helper function to check for new achievements
+function checkForNewAchievements(oldProgress: any, newProgress: any): string[] {
+  const newAchievements: string[] = [];
+
+  // Check for milestone achievements
+  if (oldProgress.totalQuestionsAnswered < 5 && newProgress.totalQuestionsAnswered >= 5) {
+    newAchievements.push('Getting Started - Answered your first 5 questions!');
+  }
+
+  if (oldProgress.totalQuestionsAnswered < 50 && newProgress.totalQuestionsAnswered >= 50) {
+    newAchievements.push('Half Century - Answered 50 questions!');
+  }
+
+  if (oldProgress.totalQuestionsAnswered < 100 && newProgress.totalQuestionsAnswered >= 100) {
+    newAchievements.push('Century Club - Answered 100 questions!');
+  }
+
+  // Check for accuracy achievements
+  if (oldProgress.overallAccuracy < 80 && newProgress.overallAccuracy >= 80) {
+    newAchievements.push('High Achiever - Reached 80% overall accuracy!');
+  }
+
+  if (oldProgress.overallAccuracy < 90 && newProgress.overallAccuracy >= 90) {
+    newAchievements.push('Excellence - Reached 90% overall accuracy!');
+  }
+
+  // Check for mastery achievements
+  if (oldProgress.strongAreas.length < 3 && newProgress.strongAreas.length >= 3) {
+    newAchievements.push('Multi-Talented - Mastered 3 or more chapters!');
+  }
+
+  return newAchievements;
 }
