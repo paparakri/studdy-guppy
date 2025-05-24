@@ -157,9 +157,42 @@ body {
   user-select: none;
 }
 
-/* Responsive utilities */
 @media (max-width: 768px) {
   .mobile-hidden {
     display: none;
   }
+}
+
+/* Mermaid Mind Map Styling */
+.mermaid {
+  background: transparent !important;
+}
+
+.mermaid svg {
+  max-width: 100% !important;
+  height: auto !important;
+  background: transparent !important;
+}
+
+/* Override mermaid default colors for dark theme */
+.mermaid .mindmap-node-label {
+  color: #ffffff !important;
+  fill: #ffffff !important;
+}
+
+.mermaid .mindmap-node {
+  stroke: #06b6d4 !important;
+  fill: #1f2937 !important;
+}
+
+.mermaid .mindmap-edge {
+  stroke: #14b8a6 !important;
+  stroke-width: 2px !important;
+}
+
+/* Custom mind map container */
+.mindmap-container {
+  overflow: hidden;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.8) 100%);
 }

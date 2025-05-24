@@ -157,7 +157,7 @@ export function MainLayout() {
       )}
       {activeModal === "mindmap" && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <MindMapModal onClose={closeModal} />
+          <MindMapModal onClose={closeModal} selectedDocuments={selectedDocuments} />
         </div>
       )}
     </div>
