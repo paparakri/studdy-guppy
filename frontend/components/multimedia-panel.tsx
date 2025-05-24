@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
-import { BrainCircuit, FileQuestion, FlaskConical, BarChart, BookOpen, Zap } from 'lucide-react'
+import { BrainCircuit, FileQuestion, FlaskConical, BarChart, BookOpen, Zap, Radio } from 'lucide-react'
 import { FlashcardView } from "@/components/multimedia/flashcard-view"
 import { SummaryView } from "@/components/multimedia/summary-view"
 import type { ModalType } from "@/components/main-layout"
@@ -99,9 +99,9 @@ export function MultimediaPanel({ className, openModal, selectedDocuments }: Mul
         </TabsContent>
       </Tabs>
 
-      {/* Responsive quick access buttons */}
+      {/* Responsive quick access buttons - Updated with podcast button */}
       <div className="p-3 border-t border-white/10 bg-gray-900/30 backdrop-blur-sm flex-shrink-0">
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-4 gap-1">
           <Button
             variant="ghost"
             size="sm"
@@ -128,6 +128,22 @@ export function MultimediaPanel({ className, openModal, selectedDocuments }: Mul
               <FileQuestion className="h-3 w-3 text-teal-400" />
             </div>
             <span className="text-xs font-medium">Quiz</span>
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="btn-modern flex flex-col items-center h-auto py-2 hover:bg-gradient-to-br hover:from-purple-500/10 hover:to-pink-500/10 rounded-xl transition-all duration-300 group"
+            onClick={() => openModal("podcast")}
+            disabled={selectedDocuments.length === 0}
+            title={selectedDocuments.length === 0 ? "Select documents to generate AI podcast" : "Generate AI podcast"}
+          >
+            <div className="w-6 h-6 bg-purple-500/20 rounded-lg flex items-center justify-center mb-1 group-hover:bg-purple-500/30 transition-all duration-300">
+              <Radio className="h-3 w-3 text-purple-400" />
+            </div>
+            <span className="text-xs font-medium">
+              {selectedDocuments.length > 0 ? `Cast (${selectedDocuments.length})` : 'Cast'}
+            </span>
           </Button>
 
           <Button
