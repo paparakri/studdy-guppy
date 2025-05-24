@@ -9,7 +9,14 @@ import { Search, Upload, File, FileText, FileAudio, FileVideo, Plus, FolderPlus,
 
 interface FilePanelProps {
   className?: string
-  onSelectedDocumentsChange: (selectedDocs: string[]) => void
+  onSelectedDocumentsChange: (selectedDocs: string[], fileStatuses: Record<string, FileStatus>) => void
+}
+
+interface FileStatus {
+  id: string
+  status: 'uploaded' | 'processed' | 'transcribing' | 'transcription_error' | 'pdf_error'
+  isTranscribing: boolean
+  name: string
 }
 
 interface FileItem {
@@ -38,7 +45,19 @@ export function FilePanel({ className, onSelectedDocumentsChange }: FilePanelPro
     const selectedDocIds = files
       .filter(file => file.selected)
       .map(file => file.id)
-    onSelectedDocumentsChange(selectedDocIds)
+    
+    // Create file status map for multimedia components
+    const fileStatuses: Record<string, FileStatus> = {}
+    files.forEach(file => {
+      fileStatuses[file.id] = {
+        id: file.id,
+        status: file.status,
+        isTranscribing: file.isTranscribing || false,
+        name: file.name
+      }
+    })
+    
+    onSelectedDocumentsChange(selectedDocIds, fileStatuses)
   }, [files, onSelectedDocumentsChange])
 
   // Poll for transcription status
@@ -327,7 +346,8 @@ export function FilePanel({ className, onSelectedDocumentsChange }: FilePanelPro
                   {/* File information */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-medium text-gray-100 truncate group-hover:text-white transition-colors duration-300 text-sm">
+                      {/* FIXED: Added max width and truncation to file name */}
+                      <h3 className="font-medium text-gray-100 group-hover:text-white transition-colors duration-300 text-sm max-w-[140px] truncate" title={file.name}>
                         {file.name}
                       </h3>
                       <span className={`text-xs px-1.5 py-0.5 rounded-md border ${getFileTypeColor(file.type)} flex-shrink-0`}>

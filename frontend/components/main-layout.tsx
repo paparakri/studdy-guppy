@@ -13,6 +13,14 @@ import { PodcastModal } from "./modals/podcast-modal"
 // Define modal types for type safety and better code organization
 export type ModalType = "quiz" | "progress" | "mindmap" | "podcast" | null
 
+// File status interface
+interface FileStatus {
+  id: string
+  status: 'uploaded' | 'processed' | 'transcribing' | 'transcription_error' | 'pdf_error'
+  isTranscribing: boolean
+  name: string
+}
+
 // Resizer component for panel width adjustment
 const PanelResizer = ({ onResize, isResizing }: { onResize: (e: MouseEvent) => void; isResizing: boolean }) => {
   return (
@@ -44,9 +52,11 @@ export function MainLayout() {
   const [isResizingRight, setIsResizingRight] = useState(false)
 
   const [selectedDocuments, setSelectedDocuments] = useState<string[]>([])
+  const [fileStatuses, setFileStatuses] = useState<Record<string, FileStatus>>({})
 
-  const handleSelectedDocumentsChange = useCallback((selectedDocs: string[]) => {
+  const handleSelectedDocumentsChange = useCallback((selectedDocs: string[], statuses: Record<string, FileStatus>) => {
     setSelectedDocuments(selectedDocs)
+    setFileStatuses(statuses)
   }, [])
 
   // Modal control functions with proper typing
@@ -140,6 +150,7 @@ export function MainLayout() {
               className="h-full bg-gray-900/50 backdrop-blur-sm border border-white/10 rounded-2xl shadow-modern overflow-hidden"
               openModal={openModal}
               selectedDocuments={selectedDocuments}
+              fileStatuses={fileStatuses}
             />
           </div>
         </div>

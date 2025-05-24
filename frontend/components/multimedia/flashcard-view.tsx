@@ -15,11 +15,19 @@ interface Flashcard {
   category: string;
 }
 
-interface FlashcardViewProps {
-  selectedDocuments: string[]
+interface FileStatus {
+  id: string
+  status: 'uploaded' | 'processed' | 'transcribing' | 'transcription_error' | 'pdf_error'
+  isTranscribing: boolean
+  name: string
 }
 
-export function FlashcardView({ selectedDocuments }: FlashcardViewProps) {
+interface FlashcardViewProps {
+  selectedDocuments: string[]
+  fileStatuses: Record<string, FileStatus>
+}
+
+export function FlashcardView({ selectedDocuments, fileStatuses }: FlashcardViewProps) {
   const [flashcards, setFlashcards] = useState<Flashcard[]>([])
   const [currentCardIndex, setCurrentCardIndex] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
@@ -31,18 +39,39 @@ export function FlashcardView({ selectedDocuments }: FlashcardViewProps) {
   const currentCard = flashcards[currentCardIndex]
   const progress = flashcards.length > 0 ? ((currentCardIndex + 1) / flashcards.length) * 100 : 0
 
-  // Generate flashcards when selectedDocuments change
+  // Check if any selected files are still transcribing
+  const hasTranscribingFiles = selectedDocuments.some(docId => {
+    const fileStatus = fileStatuses[docId]
+    return fileStatus?.status === 'transcribing' || fileStatus?.isTranscribing
+  })
+
+  // Get list of transcribing file names for display
+  const transcribingFileNames = selectedDocuments
+    .filter(docId => {
+      const fileStatus = fileStatuses[docId]
+      return fileStatus?.status === 'transcribing' || fileStatus?.isTranscribing
+    })
+    .map(docId => fileStatuses[docId]?.name)
+    .filter(Boolean)
+
+  // Generate flashcards when selectedDocuments change (but only if no files are transcribing)
   useEffect(() => {
-    if (selectedDocuments.length > 0) {
+    if (selectedDocuments.length > 0 && !hasTranscribingFiles) {
       generateFlashcards()
     } else {
       setFlashcards([])
       setError(null)
     }
-  }, [selectedDocuments])
+  }, [selectedDocuments, hasTranscribingFiles])
 
   const generateFlashcards = async (cardCount = 10) => {
     if (selectedDocuments.length === 0) return
+
+    // Don't generate if files are still transcribing
+    if (hasTranscribingFiles) {
+      setError(`Please wait for transcription to complete: ${transcribingFileNames.join(', ')}`)
+      return
+    }
 
     setIsLoading(true)
     setError(null)
@@ -154,6 +183,34 @@ export function FlashcardView({ selectedDocuments }: FlashcardViewProps) {
     )
   }
 
+  // Show transcription waiting message
+  if (hasTranscribingFiles) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center p-4">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-400/20">
+            <Loader2 className="h-8 w-8 text-blue-400 animate-spin" />
+          </div>
+          <h3 className="text-lg font-bold mb-2 gradient-text">Transcription in Progress</h3>
+          <p className="text-sm text-gray-400 mb-4">
+            Please wait for transcription to complete before generating flashcards
+          </p>
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3 max-w-sm">
+            <p className="text-xs text-blue-300 font-medium mb-1">Files being transcribed:</p>
+            <div className="space-y-1">
+              {transcribingFileNames.map((name, index) => (
+                <div key={index} className="text-xs text-gray-300 flex items-center gap-2">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                  <span className="truncate max-w-[200px]" title={name}>{name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // Show loading state
   if (isLoading) {
     return (
@@ -181,6 +238,7 @@ export function FlashcardView({ selectedDocuments }: FlashcardViewProps) {
           <p className="text-sm text-gray-400 mb-4">{error}</p>
           <Button 
             onClick={() => generateFlashcards()}
+            disabled={hasTranscribingFiles}
             className="btn-modern bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white rounded-xl px-4 py-2"
           >
             Try Again
@@ -204,6 +262,7 @@ export function FlashcardView({ selectedDocuments }: FlashcardViewProps) {
           </p>
           <Button 
             onClick={() => generateFlashcards()}
+            disabled={hasTranscribingFiles}
             className="btn-modern bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white rounded-xl px-4 py-2"
           >
             Generate Flashcards
@@ -337,6 +396,7 @@ export function FlashcardView({ selectedDocuments }: FlashcardViewProps) {
               variant="outline"
               size="sm"
               onClick={() => generateFlashcards(20)}
+              disabled={hasTranscribingFiles}
               className="btn-modern border-white/20 hover:bg-white/10 rounded-xl px-3 py-2 text-gray-300 transition-all duration-300 text-xs"
             >
               More Cards

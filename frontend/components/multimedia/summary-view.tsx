@@ -23,27 +23,62 @@ interface SummaryData {
   timestamp: string;
 }
 
-interface SummaryViewProps {
-  selectedDocuments: string[]
+interface FileStatus {
+  id: string
+  status: 'uploaded' | 'processed' | 'transcribing' | 'transcription_error' | 'pdf_error'
+  isTranscribing: boolean
+  name: string
 }
 
-export function SummaryView({ selectedDocuments }: SummaryViewProps) {
+interface SummaryViewProps {
+  selectedDocuments: string[]
+  fileStatuses: Record<string, FileStatus>
+}
+
+export function SummaryView({ selectedDocuments, fileStatuses }: SummaryViewProps) {
   const [summaryData, setSummaryData] = useState<SummaryData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Generate summary when selectedDocuments changes
+  // Check if any selected files are still transcribing
+  const hasTranscribingFiles = selectedDocuments.some(docId => {
+    const fileStatus = fileStatuses[docId]
+    return fileStatus?.status === 'transcribing' || fileStatus?.isTranscribing
+  })
+
+  // Get list of transcribing file names for display
+  const transcribingFileNames = selectedDocuments
+    .filter(docId => {
+      const fileStatus = fileStatuses[docId]
+      return fileStatus?.status === 'transcribing' || fileStatus?.isTranscribing
+    })
+    .map(docId => fileStatuses[docId]?.name)
+    .filter(Boolean)
+
+  // Get processed files (ready for summarization)
+  const processedDocuments = selectedDocuments.filter(docId => {
+    const fileStatus = fileStatuses[docId]
+    return fileStatus?.status === 'processed' || !fileStatus?.isTranscribing
+  })
+
+  // Generate summary when selectedDocuments changes (but only if no files are transcribing)
   useEffect(() => {
-    if (selectedDocuments.length > 0) {
+    if (selectedDocuments.length > 0 && !hasTranscribingFiles) {
       generateSummary()
     } else {
       setSummaryData(null)
       setError(null)
     }
-  }, [selectedDocuments])
+  }, [selectedDocuments, hasTranscribingFiles])
 
   const generateSummary = async (summaryType: string = 'detailed') => {
     if (selectedDocuments.length === 0) return
+
+    // Don't generate if files are still transcribing
+    if (hasTranscribingFiles) {
+      setError(`Please wait for transcription to complete: ${transcribingFileNames.join(', ')}`)
+      return
+    }
 
     setIsLoading(true)
     setError(null)
@@ -90,6 +125,34 @@ export function SummaryView({ selectedDocuments }: SummaryViewProps) {
     )
   }
 
+  // Show transcription waiting message
+  if (hasTranscribingFiles) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center p-6">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-400/20">
+            <Loader2 className="h-8 w-8 text-blue-400 animate-spin" />
+          </div>
+          <h3 className="text-lg font-bold mb-2 gradient-text">Transcription in Progress</h3>
+          <p className="text-sm text-gray-400 mb-4">
+            Please wait for transcription to complete before generating summaries
+          </p>
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3 max-w-sm">
+            <p className="text-xs text-blue-300 font-medium mb-1">Files being transcribed:</p>
+            <div className="space-y-1">
+              {transcribingFileNames.map((name, index) => (
+                <div key={index} className="text-xs text-gray-300 flex items-center gap-2">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                  <span className="truncate max-w-[200px]" title={name}>{name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // Show loading state
   if (isLoading) {
     return (
@@ -117,6 +180,7 @@ export function SummaryView({ selectedDocuments }: SummaryViewProps) {
           <p className="text-sm text-gray-400 mb-4">{error}</p>
           <Button 
             onClick={() => generateSummary()}
+            disabled={hasTranscribingFiles}
             className="btn-modern bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white rounded-xl px-4 py-2"
           >
             Try Again
@@ -140,6 +204,7 @@ export function SummaryView({ selectedDocuments }: SummaryViewProps) {
           </p>
           <Button 
             onClick={() => generateSummary()}
+            disabled={hasTranscribingFiles}
             className="btn-modern bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white rounded-xl px-4 py-2"
           >
             Generate Summary
@@ -277,6 +342,7 @@ export function SummaryView({ selectedDocuments }: SummaryViewProps) {
           <Button 
             className="flex-1 btn-modern bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white rounded-xl py-3 shadow-modern transition-all duration-300"
             onClick={() => generateSummary('detailed')}
+            disabled={hasTranscribingFiles}
           >
             Regenerate Summary
           </Button>
@@ -284,6 +350,7 @@ export function SummaryView({ selectedDocuments }: SummaryViewProps) {
             variant="outline" 
             className="flex-1 btn-modern border-white/20 hover:bg-white/10 rounded-xl py-3 transition-all duration-300"
             onClick={() => generateSummary('brief')}
+            disabled={hasTranscribingFiles}
           >
             Brief Version
           </Button>
