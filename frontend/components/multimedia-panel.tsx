@@ -42,7 +42,7 @@ export function MultimediaPanel({ className, openModal, selectedDocuments }: Mul
 
       {/* Responsive tabs - FIXED: Added proper height constraints */}
       <Tabs defaultValue="summary" className="flex-1 flex flex-col overflow-hidden" value={activeTab} onValueChange={setActiveTab}>
-        <div className="border-b border-white/10 px-4 flex-shrink-0">
+        <div className="border-b border-white/10 px-4 py-2 flex-shrink-0">
           <TabsList className="bg-transparent w-full justify-start gap-1 pt-3 pb-2">
             <TabsTrigger
               value="summary"
@@ -57,13 +57,6 @@ export function MultimediaPanel({ className, openModal, selectedDocuments }: Mul
             >
               <Zap className="h-3 w-3 mr-1" />
               <span className="hidden sm:inline">Cards</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="quizzes"
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500/20 data-[state=active]:to-teal-500/20 data-[state=active]:text-cyan-300 data-[state=active]:border data-[state=active]:border-cyan-400/30 rounded-xl px-3 py-2 transition-all duration-300 text-sm"
-            >
-              <FileQuestion className="h-3 w-3 mr-1" />
-              <span className="hidden sm:inline">Quiz</span>
             </TabsTrigger>
           </TabsList>
         </div>
@@ -114,11 +107,15 @@ export function MultimediaPanel({ className, openModal, selectedDocuments }: Mul
             size="sm"
             className="btn-modern flex flex-col items-center h-auto py-2 hover:bg-gradient-to-br hover:from-cyan-500/10 hover:to-teal-500/10 rounded-xl transition-all duration-300 group"
             onClick={() => openModal("mindmap")}
+            disabled={selectedDocuments.length === 0}
+            title={selectedDocuments.length === 0 ? "Select documents to generate mind map" : "Generate mind map"}
           >
             <div className="w-6 h-6 bg-cyan-500/20 rounded-lg flex items-center justify-center mb-1 group-hover:bg-cyan-500/30 transition-all duration-300">
               <BrainCircuit className="h-3 w-3 text-cyan-400" />
             </div>
-            <span className="text-xs font-medium">Mind</span>
+            <span className="text-xs font-medium">
+              {selectedDocuments.length > 0 ? `Mind (${selectedDocuments.length})` : 'Mind'}
+            </span>
           </Button>
 
           <Button
