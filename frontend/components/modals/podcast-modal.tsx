@@ -53,6 +53,7 @@ export function PodcastModal({ onClose, selectedDocuments = [] }: PodcastModalPr
   const [totalDuration, setTotalDuration] = useState(0)
   
   const audioRef = useRef<HTMLAudioElement>(null)
+  const segmentListRef = useRef<HTMLDivElement>(null) // Add ref for segment list
 
   // Generate podcast when component mounts or documents change
   useEffect(() => {
@@ -61,7 +62,20 @@ export function PodcastModal({ onClose, selectedDocuments = [] }: PodcastModalPr
     }
   }, [selectedDocuments])
 
-  // Audio event handlers
+  // Auto-scroll to current segment in the list
+  useEffect(() => {
+    if (segmentListRef.current && podcastData?.segments.length > 0) {
+      const currentSegmentElement = segmentListRef.current.querySelector(`[data-segment-index="${currentSegment}"]`)
+      if (currentSegmentElement) {
+        currentSegmentElement.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        })
+      }
+    }
+  }, [currentSegment, podcastData])
+
+  // Audio event handlers - FIXED: Better dependency management and auto-advance logic
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
@@ -75,13 +89,25 @@ export function PodcastModal({ onClose, selectedDocuments = [] }: PodcastModalPr
       setTotalDuration(audio.duration)
     }
 
+    // FIXED: Improved auto-advance logic
     const handleEnded = () => {
-      // Auto-play next segment
+      console.log(`Segment ${currentSegment + 1} ended, total segments: ${podcastData?.segments.length}`)
+      
+      // Auto-play next segment if available
       if (podcastData && currentSegment < podcastData.segments.length - 1) {
-        playSegment(currentSegment + 1)
+        const nextSegmentIndex = currentSegment + 1
+        console.log(`Auto-advancing to segment ${nextSegmentIndex + 1}`)
+        
+        // Use setTimeout to ensure state updates properly
+        setTimeout(() => {
+          playSegment(nextSegmentIndex)
+        }, 500) // Small delay to ensure clean transition
       } else {
+        console.log('Reached end of podcast')
         setIsPlaying(false)
         setCurrentSegment(0)
+        setProgress(0)
+        setCurrentTime(0)
       }
     }
 
@@ -99,12 +125,23 @@ export function PodcastModal({ onClose, selectedDocuments = [] }: PodcastModalPr
       console.log('Audio load started')
     }
 
+    // FIXED: Better event handler cleanup
+    const handlePause = () => {
+      setIsPlaying(false)
+    }
+
+    const handlePlay = () => {
+      setIsPlaying(true)
+    }
+
     audio.addEventListener('timeupdate', handleTimeUpdate)
     audio.addEventListener('loadedmetadata', handleLoadedMetadata)
     audio.addEventListener('ended', handleEnded)
     audio.addEventListener('error', handleError)
     audio.addEventListener('canplay', handleCanPlay)
     audio.addEventListener('loadstart', handleLoadStart)
+    audio.addEventListener('pause', handlePause)
+    audio.addEventListener('play', handlePlay)
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate)
@@ -113,8 +150,10 @@ export function PodcastModal({ onClose, selectedDocuments = [] }: PodcastModalPr
       audio.removeEventListener('error', handleError)
       audio.removeEventListener('canplay', handleCanPlay)
       audio.removeEventListener('loadstart', handleLoadStart)
+      audio.removeEventListener('pause', handlePause)
+      audio.removeEventListener('play', handlePlay)
     }
-  }, [currentSegment, podcastData])
+  }, [currentSegment, podcastData]) // Keep dependencies minimal but essential
 
   const generatePodcast = async () => {
     if (selectedDocuments.length === 0) {
@@ -141,6 +180,10 @@ export function PodcastModal({ onClose, selectedDocuments = [] }: PodcastModalPr
 
       if (response.ok) {
         setPodcastData(data)
+        setCurrentSegment(0) // Reset to first segment
+        setIsPlaying(false)
+        setProgress(0)
+        setCurrentTime(0)
       } else {
         setError(data.error || 'Failed to generate podcast')
       }
@@ -152,6 +195,7 @@ export function PodcastModal({ onClose, selectedDocuments = [] }: PodcastModalPr
     }
   }
 
+  // FIXED: Improved playSegment function with better state management
   const playSegment = (segmentIndex: number) => {
     if (!podcastData || !podcastData.segments[segmentIndex]) {
       console.error('Invalid segment index or no podcast data')
@@ -171,12 +215,15 @@ export function PodcastModal({ onClose, selectedDocuments = [] }: PodcastModalPr
       return
     }
 
-    console.log(`Playing segment ${segmentIndex} with URL:`, segment.audioUrl)
+    console.log(`Playing segment ${segmentIndex + 1} with URL:`, segment.audioUrl)
     
+    // Update state first
     setCurrentSegment(segmentIndex)
-    audio.src = segment.audioUrl
+    setProgress(0)
+    setCurrentTime(0)
     
-    // Add error handling for load failures
+    // Then handle audio
+    audio.src = segment.audioUrl
     audio.load()
     
     audio.play().catch(error => {
@@ -184,8 +231,6 @@ export function PodcastModal({ onClose, selectedDocuments = [] }: PodcastModalPr
       setError(`Failed to play audio: ${error.message}`)
       setIsPlaying(false)
     })
-    
-    setIsPlaying(true)
   }
 
   const togglePlayPause = () => {
@@ -194,7 +239,6 @@ export function PodcastModal({ onClose, selectedDocuments = [] }: PodcastModalPr
 
     if (isPlaying) {
       audio.pause()
-      setIsPlaying(false)
     } else {
       if (!audio.src && podcastData?.segments[currentSegment]?.audioUrl) {
         audio.src = podcastData.segments[currentSegment].audioUrl!
@@ -206,8 +250,6 @@ export function PodcastModal({ onClose, selectedDocuments = [] }: PodcastModalPr
         setError(`Failed to play audio: ${error.message}`)
         setIsPlaying(false)
       })
-      
-      setIsPlaying(true)
     }
   }
 
@@ -365,6 +407,8 @@ export function PodcastModal({ onClose, selectedDocuments = [] }: PodcastModalPr
                 <span>{podcastData.duration} duration</span>
                 <span>•</span>
                 <span>Generated {new Date(podcastData.timestamp).toLocaleTimeString()}</span>
+                <span>•</span>
+                <span className="text-cyan-400">Playing: {currentSegment + 1}/{podcastData.segments.length}</span>
               </div>
             </div>
 
@@ -448,19 +492,20 @@ export function PodcastModal({ onClose, selectedDocuments = [] }: PodcastModalPr
               </div>
             </div>
 
-            {/* Segment List */}
+            {/* FIXED: Segment List with auto-scroll */}
             <div className="bg-gray-800/30 rounded-xl border border-white/10">
               <div className="p-4 border-b border-white/10">
                 <h4 className="font-semibold text-gray-200">Podcast Segments</h4>
               </div>
-              <ScrollArea className="max-h-60">
+              <ScrollArea className="max-h-60" ref={segmentListRef}>
                 <div className="p-2">
                   {podcastData.segments.map((segment, index) => (
                     <div
                       key={segment.id}
+                      data-segment-index={index} // FIXED: Add data attribute for scrolling
                       className={`p-3 rounded-lg mb-2 cursor-pointer transition-all duration-300 ${
                         index === currentSegment
-                          ? 'bg-cyan-500/20 border border-cyan-400/30'
+                          ? 'bg-cyan-500/20 border border-cyan-400/30 ring-2 ring-cyan-400/20'
                           : 'bg-gray-800/50 hover:bg-gray-800/70 border border-transparent'
                       }`}
                       onClick={() => segment.audioUrl && playSegment(index)}
@@ -471,9 +516,16 @@ export function PodcastModal({ onClose, selectedDocuments = [] }: PodcastModalPr
                             {segment.speaker === 'host1' ? 'Alex' : 'Sam'}
                           </Badge>
                           {segment.audioUrl ? (
-                            <Mic className="h-3 w-3 text-green-400" />
+                            <Mic className={`h-3 w-3 ${index === currentSegment ? 'text-cyan-400' : 'text-green-400'}`} />
                           ) : (
                             <div className="h-3 w-3 bg-red-400 rounded-full" />
+                          )}
+                          {index === currentSegment && isPlaying && (
+                            <div className="flex gap-1">
+                              <div className="w-1 h-3 bg-cyan-400 rounded-full animate-pulse"></div>
+                              <div className="w-1 h-3 bg-cyan-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                              <div className="w-1 h-3 bg-cyan-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                            </div>
                           )}
                         </div>
                         <span className="text-xs text-gray-400">#{index + 1}</span>
@@ -495,8 +547,13 @@ export function PodcastModal({ onClose, selectedDocuments = [] }: PodcastModalPr
               </ScrollArea>
             </div>
 
-            {/* Hidden Audio Element */}
-            <audio ref={audioRef} preload="metadata" crossOrigin="anonymous" />
+            {/* Hidden Audio Element - FIXED: Better audio element setup */}
+            <audio 
+              ref={audioRef} 
+              preload="metadata" 
+              crossOrigin="anonymous"
+              style={{ display: 'none' }}
+            />
           </div>
         )}
 

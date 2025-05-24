@@ -1,4 +1,4 @@
-// app/api/generate-podcast/route.ts
+// frontend/app/api/generate-podcast/route.ts - UPDATED to use proxy URLs
 import { NextRequest, NextResponse } from 'next/server';
 import { callClaude, s3Client, pollyClient } from '@/lib/aws-config';
 import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -79,6 +79,13 @@ export async function POST(request: NextRequest) {
       documentIds,
       timestamp: new Date().toISOString()
     };
+
+    console.log('Generated podcast with segments:', audioFiles.map(seg => ({
+      id: seg.id,
+      speaker: seg.speaker,
+      hasAudio: !!seg.audioUrl,
+      audioUrl: seg.audioUrl
+    })));
 
     return NextResponse.json(podcastData);
     
@@ -199,11 +206,13 @@ async function generatePodcastAudio(script: PodcastScript, documentIds: string[]
     const voiceId = voices[segment.speaker];
     
     try {
+      console.log(`Generating audio for segment ${i} with voice ${voiceId}`);
+      
       // Generate speech using Polly
       const pollyResponse = await pollyClient.send(new SynthesizeSpeechCommand({
         Text: segment.text,
         OutputFormat: 'mp3',
-        VoiceId: voiceId,
+        VoiceId: voiceId /*as any*/,
         Engine: 'neural',
         SampleRate: '22050'
       }));
@@ -221,17 +230,23 @@ async function generatePodcastAudio(script: PodcastScript, documentIds: string[]
           ContentType: 'audio/mpeg',
         }));
         
-        // Generate S3 URL (in production, you might want presigned URLs)
-        const audioUrl = `https://${process.env.S3_BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-west-2'}.amazonaws.com/${audioKey}`;
+        console.log(`Uploaded audio segment ${i} to S3: ${audioKey}, size: ${audioBuffer.length} bytes`);
+        
+        // 🔥 FIXED: Use proxy URL instead of direct S3 URL
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+        const audioUrl = `${baseUrl}/api/audio/${encodeURIComponent(audioKey)}`;
         
         audioSegments.push({
           id: i,
           speaker: segment.speaker,
           text: segment.text,
           audioUrl: audioUrl,
+          s3Key: audioKey, // Keep track of S3 key for debugging
           voiceId: voiceId,
           duration: estimateAudioDuration(segment.text)
         });
+        
+        console.log(`Generated segment ${i} with proxy URL: ${audioUrl}`);
       }
       
     } catch (error) {
