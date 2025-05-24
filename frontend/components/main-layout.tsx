@@ -8,9 +8,10 @@ import { QuizModal } from "@/components/modals/quiz-modal"
 import { ProgressModal } from "@/components/modals/progress-modal"
 import { MindMapModal } from "@/components/modals/mind-map-modal"
 import { Header } from "@/components/header"
+import { PodcastModal } from "./modals/podcast-modal"
 
 // Define modal types for type safety and better code organization
-export type ModalType = "quiz" | "progress" | "mindmap" | null
+export type ModalType = "quiz" | "progress" | "mindmap" | "podcast" | null
 
 // Resizer component for panel width adjustment
 const PanelResizer = ({ onResize, isResizing }: { onResize: (e: MouseEvent) => void; isResizing: boolean }) => {
@@ -158,6 +159,11 @@ export function MainLayout() {
       {activeModal === "mindmap" && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <MindMapModal onClose={closeModal} selectedDocuments={selectedDocuments} />
+        </div>
+      )}
+      {activeModal === "podcast" && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <PodcastModal onClose={closeModal} selectedDocuments={selectedDocuments} />
         </div>
       )}
     </div>

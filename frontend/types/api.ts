@@ -55,4 +55,40 @@ export interface SummarizeResponse {
   timestamp: string;
 }
 
+// Podcast interfaces
+export interface PodcastRequest {
+  documentIds: string[];
+  podcastStyle?: 'conversational' | 'educational' | 'interview' | 'storytelling';
+  duration?: 'short' | 'medium' | 'long';
+}
+
+export interface PodcastSegment {
+  id: number;
+  speaker: 'host1' | 'host2';
+  text: string;
+  audioUrl: string | null;
+  voiceId: string;
+  duration?: number;
+  error?: string;
+}
+
+export interface PodcastScript {
+  title: string;
+  duration: string;
+  segments: Array<{
+    speaker: 'host1' | 'host2';
+    text: string;
+  }>;
+}
+
+export interface PodcastResponse {
+  id: string;
+  title: string;
+  duration: string;
+  segments: PodcastSegment[];
+  script: PodcastScript;
+  documentIds: string[];
+  timestamp: string;
+}
+
 // Add more interfaces as needed
