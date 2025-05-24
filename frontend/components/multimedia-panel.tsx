@@ -11,9 +11,10 @@ import type { ModalType } from "@/components/main-layout"
 interface MultimediaPanelProps {
   className?: string
   openModal: (modal: ModalType) => void
+  selectedDocuments: string[]
 }
 
-export function MultimediaPanel({ className, openModal }: MultimediaPanelProps) {
+export function MultimediaPanel({ className, openModal, selectedDocuments }: MultimediaPanelProps) {
   const [activeTab, setActiveTab] = useState("summary")
 
   const generateQuiz = async () => {
@@ -69,11 +70,11 @@ export function MultimediaPanel({ className, openModal }: MultimediaPanelProps) 
 
         {/* Tab content */}
         <TabsContent value="summary" className="flex-1 m-0">
-          <SummaryView />
+          <SummaryView selectedDocuments={selectedDocuments} />
         </TabsContent>
 
         <TabsContent value="flashcards" className="flex-1 m-0">
-          <FlashcardView />
+          <FlashcardView selectedDocuments={selectedDocuments} />
         </TabsContent>
 
         <TabsContent value="quizzes" className="flex-1 m-0 p-4">
@@ -86,12 +87,16 @@ export function MultimediaPanel({ className, openModal }: MultimediaPanelProps) 
 
               <h3 className="text-lg font-bold mb-3 gradient-text">Ready for a Quiz?</h3>
               <p className="text-sm text-gray-400 mb-6 leading-relaxed">
-                Test your knowledge with interactive quizzes generated from your study materials.
+                {selectedDocuments.length > 0 
+                  ? `Generate a quiz from ${selectedDocuments.length} selected document${selectedDocuments.length > 1 ? 's' : ''}.`
+                  : 'Select study materials from the left panel to generate a quiz.'
+                }
               </p>
 
               <Button
                 className="btn-modern bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white rounded-xl px-6 py-3 shadow-modern transition-all duration-300 hover:shadow-modern-lg w-full"
                 onClick={() => openModal("quiz")}
+                disabled={selectedDocuments.length === 0}
               >
                 <FileQuestion className="h-4 w-4 mr-2" />
                 Start Quiz

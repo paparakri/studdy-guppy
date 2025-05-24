@@ -1,63 +1,106 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
-import { CheckCircle2, XCircle, Trophy, Clock } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { CheckCircle2, XCircle, Trophy, Clock, Loader2, FileText, Settings } from "lucide-react"
 
 interface QuizModalProps {
   onClose: () => void
+  selectedDocuments: string[]
 }
 
-// Enhanced mock quiz data with better structure and metadata
-const mockQuiz = {
-  title: "Machine Learning Basics Quiz",
-  description: "Test your understanding of fundamental ML concepts",
-  timeLimit: 300, // 5 minutes
-  questions: [
-    {
-      id: 1,
-      question: "Which of the following is NOT a type of machine learning?",
-      options: ["Supervised Learning", "Unsupervised Learning", "Reinforcement Learning", "Prescriptive Learning"],
-      correctAnswer: 3,
-      explanation:
-        "Prescriptive Learning is not a recognized type of machine learning. The three main types are Supervised, Unsupervised, and Reinforcement Learning.",
-    },
-    {
-      id: 2,
-      question: "What is the main characteristic of supervised learning?",
-      options: [
-        "Learning from unlabeled data",
-        "Learning from labeled data",
-        "Learning through trial and error",
-        "Learning without any data",
-      ],
-      correctAnswer: 1,
-      explanation: "Supervised learning uses labeled training data to learn the mapping between inputs and outputs.",
-    },
-    {
-      id: 3,
-      question: "Deep learning is a subset of which field?",
-      options: ["Reinforcement Learning", "Supervised Learning", "Machine Learning", "Data Mining"],
-      correctAnswer: 2,
-      explanation: "Deep learning is a subset of machine learning that uses neural networks with multiple layers.",
-    },
-  ],
+interface QuizQuestion {
+  id: number;
+  question: string;
+  options: string[];
+  correctAnswer: number;
+  explanation: string;
 }
 
-export function QuizModal({ onClose }: QuizModalProps) {
+export function QuizModal({ onClose, selectedDocuments }: QuizModalProps) {
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([])
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [selectedOption, setSelectedOption] = useState<number | null>(null)
-  const [answers, setAnswers] = useState<(number | null)[]>(Array(mockQuiz.questions.length).fill(null))
+  const [answers, setAnswers] = useState<(number | null)[]>([])
   const [showResult, setShowResult] = useState(false)
   const [quizCompleted, setQuizCompleted] = useState(false)
-  const [timeRemaining, setTimeRemaining] = useState(mockQuiz.timeLimit)
+  const [timeRemaining, setTimeRemaining] = useState(300) // 5 minutes
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [showSettings, setShowSettings] = useState(true)
+  
+  // Quiz settings
+  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium')
+  const [questionCount, setQuestionCount] = useState(10)
 
-  const currentQuestion = mockQuiz.questions[currentQuestionIndex]
-  const progress = ((currentQuestionIndex + 1) / mockQuiz.questions.length) * 100
+  const currentQuestion = quizQuestions[currentQuestionIndex]
+  const progress = quizQuestions.length > 0 ? ((currentQuestionIndex + 1) / quizQuestions.length) * 100 : 0
+
+  // Timer effect
+  useEffect(() => {
+    if (quizQuestions.length > 0 && !quizCompleted && !showSettings) {
+      const timer = setInterval(() => {
+        setTimeRemaining((prev) => {
+          if (prev <= 1) {
+            setQuizCompleted(true)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+
+      return () => clearInterval(timer)
+    }
+  }, [quizQuestions.length, quizCompleted, showSettings])
+
+  const generateQuiz = async () => {
+    if (selectedDocuments.length === 0) {
+      setError('Please select documents to generate a quiz')
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+    setShowSettings(false)
+
+    try {
+      const response = await fetch('/api/generate-quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentIds: selectedDocuments,
+          difficulty,
+          questionCount
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setQuizQuestions(data.questions || [])
+        setAnswers(Array(data.questions?.length || 0).fill(null))
+        setCurrentQuestionIndex(0)
+        setSelectedOption(null)
+        setShowResult(false)
+        setQuizCompleted(false)
+        setTimeRemaining(questionCount * 30) // 30 seconds per question
+      } else {
+        setError(data.error || 'Failed to generate quiz')
+        setShowSettings(true)
+      }
+    } catch (error) {
+      console.error('Quiz generation error:', error)
+      setError('Network error. Please try again.')
+      setShowSettings(true)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   // Handle option selection with visual feedback
   const handleOptionSelect = (value: string) => {
@@ -75,7 +118,7 @@ export function QuizModal({ onClose }: QuizModalProps) {
     setTimeout(() => {
       setShowResult(false)
 
-      if (currentQuestionIndex < mockQuiz.questions.length - 1) {
+      if (currentQuestionIndex < quizQuestions.length - 1) {
         setCurrentQuestionIndex((prev) => prev + 1)
         setSelectedOption(null)
       } else {
@@ -88,14 +131,14 @@ export function QuizModal({ onClose }: QuizModalProps) {
   const calculateScore = () => {
     let correctCount = 0
     answers.forEach((answer, index) => {
-      if (answer === mockQuiz.questions[index].correctAnswer) {
+      if (answer === quizQuestions[index]?.correctAnswer) {
         correctCount++
       }
     })
     return {
       score: correctCount,
-      total: mockQuiz.questions.length,
-      percentage: Math.round((correctCount / mockQuiz.questions.length) * 100),
+      total: quizQuestions.length,
+      percentage: Math.round((correctCount / quizQuestions.length) * 100),
     }
   }
 
@@ -112,12 +155,15 @@ export function QuizModal({ onClose }: QuizModalProps) {
 
   // Restart quiz with reset state
   const restartQuiz = () => {
+    setShowSettings(true)
+    setQuizQuestions([])
     setCurrentQuestionIndex(0)
     setSelectedOption(null)
-    setAnswers(Array(mockQuiz.questions.length).fill(null))
+    setAnswers([])
     setShowResult(false)
     setQuizCompleted(false)
-    setTimeRemaining(mockQuiz.timeLimit)
+    setTimeRemaining(300)
+    setError(null)
   }
 
   return (
@@ -126,10 +172,17 @@ export function QuizModal({ onClose }: QuizModalProps) {
         <DialogHeader className="pb-6 border-b border-white/10">
           <div className="flex items-center justify-between">
             <div>
-              <DialogTitle className="text-2xl font-bold gradient-text">{mockQuiz.title}</DialogTitle>
-              <p className="text-sm text-gray-400 mt-1">{mockQuiz.description}</p>
+              <DialogTitle className="text-2xl font-bold gradient-text">
+                {showSettings ? 'Quiz Settings' : 'Interactive Quiz'}
+              </DialogTitle>
+              <p className="text-sm text-gray-400 mt-1">
+                {showSettings 
+                  ? `Generate a quiz from ${selectedDocuments.length} selected document${selectedDocuments.length > 1 ? 's' : ''}`
+                  : 'Test your knowledge'
+                }
+              </p>
             </div>
-            {!quizCompleted && (
+            {!quizCompleted && !showSettings && quizQuestions.length > 0 && (
               <div className="flex items-center gap-2 text-sm text-gray-400">
                 <Clock className="h-4 w-4" />
                 <span>
@@ -140,13 +193,90 @@ export function QuizModal({ onClose }: QuizModalProps) {
           </div>
         </DialogHeader>
 
-        {!quizCompleted ? (
+        {/* Show settings screen */}
+        {showSettings && (
+          <div className="py-6">
+            {selectedDocuments.length === 0 ? (
+              <div className="text-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-cyan-500/20 to-teal-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-cyan-400/20">
+                  <FileText className="h-8 w-8 text-cyan-400" />
+                </div>
+                <h3 className="text-lg font-bold mb-2 gradient-text">No Documents Selected</h3>
+                <p className="text-sm text-gray-400">
+                  Please select study materials from the left panel to generate a quiz
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-300 mb-2 block">Difficulty Level</label>
+                    <Select value={difficulty} onValueChange={(value: 'easy' | 'medium' | 'hard') => setDifficulty(value)}>
+                      <SelectTrigger className="bg-gray-800/50 border-white/10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="easy">Easy</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="hard">Hard</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-300 mb-2 block">Number of Questions</label>
+                    <Select value={questionCount.toString()} onValueChange={(value) => setQuestionCount(Number(value))}>
+                      <SelectTrigger className="bg-gray-800/50 border-white/10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5 Questions</SelectItem>
+                        <SelectItem value="10">10 Questions</SelectItem>
+                        <SelectItem value="15">15 Questions</SelectItem>
+                        <SelectItem value="20">20 Questions</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400 text-sm">
+                    {error}
+                  </div>
+                )}
+
+                <div className="bg-gray-800/30 rounded-xl p-4 border border-white/10">
+                  <h4 className="text-sm font-medium text-gray-300 mb-2">Selected Documents:</h4>
+                  <p className="text-xs text-gray-400">
+                    {selectedDocuments.length} document{selectedDocuments.length > 1 ? 's' : ''} selected for quiz generation
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Show loading state */}
+        {isLoading && (
+          <div className="py-8">
+            <div className="text-center">
+              <Loader2 className="h-12 w-12 text-cyan-400 animate-spin mx-auto mb-4" />
+              <h3 className="text-lg font-bold mb-2 gradient-text">Generating Quiz</h3>
+              <p className="text-sm text-gray-400">
+                Creating {questionCount} {difficulty} questions from your documents...
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Show quiz questions */}
+        {!quizCompleted && !showSettings && !isLoading && quizQuestions.length > 0 && (
           <>
             {/* Enhanced progress section */}
             <div className="py-4">
               <div className="flex justify-between items-center mb-3">
                 <span className="text-sm font-medium text-gray-300">
-                  Question {currentQuestionIndex + 1} of {mockQuiz.questions.length}
+                  Question {currentQuestionIndex + 1} of {quizQuestions.length}
                 </span>
                 <span className="text-sm text-gray-400">{Math.round(progress)}% Complete</span>
               </div>
@@ -161,10 +291,10 @@ export function QuizModal({ onClose }: QuizModalProps) {
             {/* Enhanced question section */}
             <div className="py-6">
               <div className="card-modern bg-gray-800/30 backdrop-blur-sm border border-white/10 rounded-2xl p-6 mb-6">
-                <h3 className="text-xl font-semibold text-gray-100 leading-relaxed mb-4">{currentQuestion.question}</h3>
+                <h3 className="text-xl font-semibold text-gray-100 leading-relaxed mb-4">{currentQuestion?.question}</h3>
 
                 <RadioGroup value={selectedOption?.toString()} onValueChange={handleOptionSelect} className="space-y-4">
-                  {currentQuestion.options.map((option, index) => (
+                  {currentQuestion?.options.map((option, index) => (
                     <div
                       key={index}
                       className={`card-modern group relative p-4 rounded-xl border transition-all duration-300 cursor-pointer ${
@@ -210,24 +340,16 @@ export function QuizModal({ onClose }: QuizModalProps) {
                 {showResult && (
                   <div className="mt-6 p-4 bg-gray-900/50 rounded-xl border border-white/10">
                     <h4 className="text-sm font-medium text-cyan-400 mb-2">Explanation:</h4>
-                    <p className="text-sm text-gray-300 leading-relaxed">{currentQuestion.explanation}</p>
+                    <p className="text-sm text-gray-300 leading-relaxed">{currentQuestion?.explanation}</p>
                   </div>
                 )}
               </div>
             </div>
-
-            <DialogFooter>
-              <Button
-                onClick={nextQuestion}
-                disabled={selectedOption === null || showResult}
-                className="btn-modern bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white rounded-xl px-8 py-3 shadow-modern transition-all duration-300 hover:shadow-modern-lg disabled:opacity-50"
-              >
-                {currentQuestionIndex === mockQuiz.questions.length - 1 ? "Finish Quiz" : "Next Question"}
-              </Button>
-            </DialogFooter>
           </>
-        ) : (
-          /* Enhanced results section */
+        )}
+
+        {/* Show results */}
+        {quizCompleted && quizQuestions.length > 0 && (
           <div className="py-8">
             <div className="text-center">
               {(() => {
@@ -266,29 +388,59 @@ export function QuizModal({ onClose }: QuizModalProps) {
                         <div className="text-xs text-gray-400">Total</div>
                       </div>
                     </div>
-
-                    <div className="flex gap-4 justify-center">
-                      <Button
-                        variant="outline"
-                        onClick={onClose}
-                        className="btn-modern border-white/20 hover:bg-white/10 rounded-xl px-6 py-3 transition-all duration-300"
-                      >
-                        Close
-                      </Button>
-                      <Button
-                        onClick={restartQuiz}
-                        className="btn-modern bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white rounded-xl px-6 py-3 shadow-modern transition-all duration-300 hover:shadow-modern-lg"
-                      >
-                        <Trophy className="h-4 w-4 mr-2" />
-                        Retake Quiz
-                      </Button>
-                    </div>
                   </>
                 )
               })()}
             </div>
           </div>
         )}
+
+        <DialogFooter>
+          {showSettings ? (
+            <div className="flex gap-2 w-full">
+              <Button
+                variant="outline"
+                onClick={onClose}
+                className="btn-modern border-white/20 hover:bg-white/10 rounded-xl px-6 py-3 transition-all duration-300"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={generateQuiz}
+                disabled={selectedDocuments.length === 0}
+                className="btn-modern bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white rounded-xl px-6 py-3 shadow-modern transition-all duration-300 hover:shadow-modern-lg"
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Generate Quiz
+              </Button>
+            </div>
+          ) : quizCompleted ? (
+            <div className="flex gap-4 justify-center w-full">
+              <Button
+                variant="outline"
+                onClick={onClose}
+                className="btn-modern border-white/20 hover:bg-white/10 rounded-xl px-6 py-3 transition-all duration-300"
+              >
+                Close
+              </Button>
+              <Button
+                onClick={restartQuiz}
+                className="btn-modern bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white rounded-xl px-6 py-3 shadow-modern transition-all duration-300 hover:shadow-modern-lg"
+              >
+                <Trophy className="h-4 w-4 mr-2" />
+                New Quiz
+              </Button>
+            </div>
+          ) : !isLoading && quizQuestions.length > 0 ? (
+            <Button
+              onClick={nextQuestion}
+              disabled={selectedOption === null || showResult}
+              className="btn-modern bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white rounded-xl px-8 py-3 shadow-modern transition-all duration-300 hover:shadow-modern-lg disabled:opacity-50"
+            >
+              {currentQuestionIndex === quizQuestions.length - 1 ? "Finish Quiz" : "Next Question"}
+            </Button>
+          ) : null}
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

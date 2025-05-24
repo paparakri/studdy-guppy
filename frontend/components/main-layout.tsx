@@ -138,6 +138,7 @@ export function MainLayout() {
             <MultimediaPanel
               className="h-full bg-gray-900/50 backdrop-blur-sm border border-white/10 rounded-2xl shadow-modern overflow-hidden"
               openModal={openModal}
+              selectedDocuments={selectedDocuments}
             />
           </div>
         </div>
@@ -146,12 +147,12 @@ export function MainLayout() {
       {/* Modal components with enhanced backdrop */}
       {activeModal === "quiz" && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <QuizModal onClose={closeModal} />
+          <QuizModal onClose={closeModal} selectedDocuments={selectedDocuments}  />
         </div>
       )}
       {activeModal === "progress" && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <ProgressModal onClose={closeModal} />
+          <ProgressModal onClose={closeModal}/>
         </div>
       )}
       {activeModal === "mindmap" && (
