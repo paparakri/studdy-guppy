@@ -238,28 +238,6 @@ export function ChatPanel({ className, selectedDocuments }: ChatPanelProps) {
             <Send className="h-4 w-4" />
           </Button>
         </div>
-        
-        {/* Quick action suggestions */}
-        <div className="flex gap-2 mt-3">
-          <button 
-            className="text-xs bg-gray-800/50 hover:bg-gray-700/50 text-gray-300 px-3 py-1 rounded-lg transition-all duration-300"
-            onClick={() => setInput("Create a quiz from my materials")}
-          >
-            Create Quiz
-          </button>
-          <button 
-            className="text-xs bg-gray-800/50 hover:bg-gray-700/50 text-gray-300 px-3 py-1 rounded-lg transition-all duration-300"
-            onClick={() => setInput("Summarize key concepts")}
-          >
-            Summarize
-          </button>
-          <button 
-            className="text-xs bg-gray-800/50 hover:bg-gray-700/50 text-gray-300 px-3 py-1 rounded-lg transition-all duration-300"
-            onClick={() => setInput("Generate flashcards")}
-          >
-            Flashcards
-          </button>
-        </div>
       </div>
     </div>
   )
