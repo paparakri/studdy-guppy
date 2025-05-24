@@ -8,14 +8,37 @@ import { FlashcardView } from "@/components/multimedia/flashcard-view"
 import { SummaryView } from "@/components/multimedia/summary-view"
 import type { ModalType } from "@/components/main-layout"
 
+interface FileStatus {
+  id: string
+  status: 'uploaded' | 'processed' | 'transcribing' | 'transcription_error' | 'pdf_error'
+  isTranscribing: boolean
+  name: string
+}
+
 interface MultimediaPanelProps {
   className?: string
   openModal: (modal: ModalType) => void
   selectedDocuments: string[]
+  fileStatuses: Record<string, FileStatus>
 }
 
-export function MultimediaPanel({ className, openModal, selectedDocuments }: MultimediaPanelProps) {
+export function MultimediaPanel({ className, openModal, selectedDocuments, fileStatuses }: MultimediaPanelProps) {
   const [activeTab, setActiveTab] = useState("summary")
+
+  // Check if any selected files are still transcribing
+  const hasTranscribingFiles = selectedDocuments.some(docId => {
+    const fileStatus = fileStatuses[docId]
+    return fileStatus?.status === 'transcribing' || fileStatus?.isTranscribing
+  })
+
+  // Get list of transcribing file names for display
+  const transcribingFileNames = selectedDocuments
+    .filter(docId => {
+      const fileStatus = fileStatuses[docId]
+      return fileStatus?.status === 'transcribing' || fileStatus?.isTranscribing
+    })
+    .map(docId => fileStatuses[docId]?.name)
+    .filter(Boolean)
 
   const generateQuiz = async () => {
     // TODO: Call /api/generate-quiz
@@ -63,11 +86,11 @@ export function MultimediaPanel({ className, openModal, selectedDocuments }: Mul
 
         {/* Tab content - FIXED: Added proper height constraints and overflow handling */}
         <TabsContent value="summary" className="flex-1 m-0 overflow-hidden">
-          <SummaryView selectedDocuments={selectedDocuments} />
+          <SummaryView selectedDocuments={selectedDocuments} fileStatuses={fileStatuses} />
         </TabsContent>
 
         <TabsContent value="flashcards" className="flex-1 m-0 overflow-hidden">
-          <FlashcardView selectedDocuments={selectedDocuments} />
+          <FlashcardView selectedDocuments={selectedDocuments} fileStatuses={fileStatuses} />
         </TabsContent>
 
         <TabsContent value="quizzes" className="flex-1 m-0 overflow-hidden p-4">
@@ -99,7 +122,7 @@ export function MultimediaPanel({ className, openModal, selectedDocuments }: Mul
         </TabsContent>
       </Tabs>
 
-      {/* Responsive quick access buttons - Updated with podcast button */}
+      {/* Responsive quick access buttons - Updated with transcription status checks */}
       <div className="p-3 border-t border-white/10 bg-gray-900/30 backdrop-blur-sm flex-shrink-0">
         <div className="grid grid-cols-4 gap-1">
           <Button
@@ -107,8 +130,14 @@ export function MultimediaPanel({ className, openModal, selectedDocuments }: Mul
             size="sm"
             className="btn-modern flex flex-col items-center h-auto py-2 hover:bg-gradient-to-br hover:from-cyan-500/10 hover:to-teal-500/10 rounded-xl transition-all duration-300 group"
             onClick={() => openModal("mindmap")}
-            disabled={selectedDocuments.length === 0}
-            title={selectedDocuments.length === 0 ? "Select documents to generate mind map" : "Generate mind map"}
+            disabled={selectedDocuments.length === 0 || hasTranscribingFiles}
+            title={
+              selectedDocuments.length === 0 
+                ? "Select documents to generate mind map" 
+                : hasTranscribingFiles
+                ? `Waiting for transcription: ${transcribingFileNames.join(', ')}`
+                : "Generate mind map"
+            }
           >
             <div className="w-6 h-6 bg-cyan-500/20 rounded-lg flex items-center justify-center mb-1 group-hover:bg-cyan-500/30 transition-all duration-300">
               <BrainCircuit className="h-3 w-3 text-cyan-400" />
@@ -135,8 +164,14 @@ export function MultimediaPanel({ className, openModal, selectedDocuments }: Mul
             size="sm"
             className="btn-modern flex flex-col items-center h-auto py-2 hover:bg-gradient-to-br hover:from-purple-500/10 hover:to-pink-500/10 rounded-xl transition-all duration-300 group"
             onClick={() => openModal("podcast")}
-            disabled={selectedDocuments.length === 0}
-            title={selectedDocuments.length === 0 ? "Select documents to generate AI podcast" : "Generate AI podcast"}
+            disabled={selectedDocuments.length === 0 || hasTranscribingFiles}
+            title={
+              selectedDocuments.length === 0 
+                ? "Select documents to generate AI podcast" 
+                : hasTranscribingFiles
+                ? `Waiting for transcription: ${transcribingFileNames.join(', ')}`
+                : "Generate AI podcast"
+            }
           >
             <div className="w-6 h-6 bg-purple-500/20 rounded-lg flex items-center justify-center mb-1 group-hover:bg-purple-500/30 transition-all duration-300">
               <Radio className="h-3 w-3 text-purple-400" />
