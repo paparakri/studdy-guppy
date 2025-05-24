@@ -1,57 +1,90 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { ChevronLeft, ChevronRight, RotateCcw, CheckCircle, X, Shuffle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, RotateCcw, CheckCircle, X, Shuffle, Loader2, FileText } from 'lucide-react'
 
-// Enhanced mock flashcard data with difficulty levels and categories
-const mockFlashcards = [
-  {
-    id: 1,
-    question: "What is Supervised Learning?",
-    answer:
-      "A type of machine learning where the model is trained on labeled data, learning to map inputs to known outputs. Examples include classification and regression tasks.",
-    difficulty: "Easy",
-    category: "Fundamentals",
-  },
-  {
-    id: 2,
-    question: "What is a Neural Network?",
-    answer:
-      "A computational model inspired by the human brain, consisting of layers of interconnected nodes (neurons) that process information. Each connection has a weight that adjusts as learning proceeds.",
-    difficulty: "Medium",
-    category: "Deep Learning",
-  },
-  {
-    id: 3,
-    question: "What is Reinforcement Learning?",
-    answer:
-      "A type of machine learning where an agent learns to make decisions by taking actions in an environment to maximize cumulative rewards. It learns through trial and error.",
-    difficulty: "Hard",
-    category: "Advanced",
-  },
-]
+// Enhanced flashcard interface
+interface Flashcard {
+  id: number;
+  question: string;
+  answer: string;
+  difficulty: string;
+  category: string;
+}
 
-export function FlashcardView() {
+interface FlashcardViewProps {
+  selectedDocuments: string[]
+}
+
+export function FlashcardView({ selectedDocuments }: FlashcardViewProps) {
+  const [flashcards, setFlashcards] = useState<Flashcard[]>([])
   const [currentCardIndex, setCurrentCardIndex] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
   const [completedCards, setCompletedCards] = useState<number[]>([])
   const [studySession, setStudySession] = useState({ correct: 0, total: 0 })
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const currentCard = mockFlashcards[currentCardIndex]
-  const progress = ((currentCardIndex + 1) / mockFlashcards.length) * 100
+  const currentCard = flashcards[currentCardIndex]
+  const progress = flashcards.length > 0 ? ((currentCardIndex + 1) / flashcards.length) * 100 : 0
+
+  // Generate flashcards when selectedDocuments change
+  useEffect(() => {
+    if (selectedDocuments.length > 0) {
+      generateFlashcards()
+    } else {
+      setFlashcards([])
+      setError(null)
+    }
+  }, [selectedDocuments])
+
+  const generateFlashcards = async (cardCount = 10) => {
+    if (selectedDocuments.length === 0) return
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const response = await fetch('/api/generate-flashcards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentIds: selectedDocuments,
+          cardCount
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setFlashcards(data.flashcards || [])
+        setCurrentCardIndex(0)
+        setIsFlipped(false)
+        setCompletedCards([])
+        setStudySession({ correct: 0, total: 0 })
+      } else {
+        setError(data.error || 'Failed to generate flashcards')
+      }
+    } catch (error) {
+      console.error('Flashcard generation error:', error)
+      setError('Network error. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   // Enhanced navigation with automatic flip reset
   const prevCard = () => {
     setIsFlipped(false)
-    setCurrentCardIndex((prev) => (prev === 0 ? mockFlashcards.length - 1 : prev - 1))
+    setCurrentCardIndex((prev) => (prev === 0 ? flashcards.length - 1 : prev - 1))
   }
 
   const nextCard = () => {
     setIsFlipped(false)
-    setCurrentCardIndex((prev) => (prev === mockFlashcards.length - 1 ? 0 : prev + 1))
+    setCurrentCardIndex((prev) => (prev === flashcards.length - 1 ? 0 : prev + 1))
   }
 
   // Enhanced card flip with smooth animation
@@ -61,7 +94,7 @@ export function FlashcardView() {
 
   // Mark card as correct and move to next
   const markCorrect = () => {
-    if (!completedCards.includes(currentCard.id)) {
+    if (currentCard && !completedCards.includes(currentCard.id)) {
       setCompletedCards((prev) => [...prev, currentCard.id])
       setStudySession((prev) => ({ correct: prev.correct + 1, total: prev.total + 1 }))
     }
@@ -82,18 +115,102 @@ export function FlashcardView() {
     setIsFlipped(false)
   }
 
+  // Shuffle flashcards
+  const shuffleCards = () => {
+    const shuffled = [...flashcards].sort(() => Math.random() - 0.5)
+    setFlashcards(shuffled)
+    setCurrentCardIndex(0)
+    setIsFlipped(false)
+  }
+
   // Get difficulty color
   const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case "Easy":
+    switch (difficulty?.toLowerCase()) {
+      case "easy":
         return "bg-green-500/20 text-green-300 border-green-500/30"
-      case "Medium":
+      case "medium":
         return "bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
-      case "Hard":
+      case "hard":
         return "bg-red-500/20 text-red-300 border-red-500/30"
       default:
         return "bg-gray-500/20 text-gray-300 border-gray-500/30"
     }
+  }
+
+  // Show message when no documents are selected
+  if (selectedDocuments.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center p-4">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-br from-cyan-500/20 to-teal-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-cyan-400/20">
+            <FileText className="h-8 w-8 text-cyan-400" />
+          </div>
+          <h3 className="text-lg font-bold mb-2 gradient-text">No Documents Selected</h3>
+          <p className="text-sm text-gray-400 mb-4">
+            Select study materials from the left panel to generate flashcards
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center p-4">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 text-cyan-400 animate-spin mx-auto mb-4" />
+          <h3 className="text-lg font-bold mb-2 gradient-text">Generating Flashcards</h3>
+          <p className="text-sm text-gray-400">
+            Creating flashcards from {selectedDocuments.length} document{selectedDocuments.length > 1 ? 's' : ''}...
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center p-4">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-500/30">
+            <X className="h-8 w-8 text-red-400" />
+          </div>
+          <h3 className="text-lg font-bold mb-2 text-red-400">Error</h3>
+          <p className="text-sm text-gray-400 mb-4">{error}</p>
+          <Button 
+            onClick={() => generateFlashcards()}
+            className="btn-modern bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white rounded-xl px-4 py-2"
+          >
+            Try Again
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Show empty state when no flashcards were generated
+  if (flashcards.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center p-4">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-br from-cyan-500/20 to-teal-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-cyan-400/20">
+            <FileText className="h-8 w-8 text-cyan-400" />
+          </div>
+          <h3 className="text-lg font-bold mb-2 gradient-text">Generate Flashcards</h3>
+          <p className="text-sm text-gray-400 mb-4">
+            Create flashcards from your selected documents
+          </p>
+          <Button 
+            onClick={() => generateFlashcards()}
+            className="btn-modern bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white rounded-xl px-4 py-2"
+          >
+            Generate Flashcards
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -103,11 +220,13 @@ export function FlashcardView() {
         <div className="flex justify-between items-center mb-2">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-300">
-              {currentCardIndex + 1}/{mockFlashcards.length}
+              {currentCardIndex + 1}/{flashcards.length}
             </span>
-            <span className={`text-xs px-2 py-1 rounded-md border ${getDifficultyColor(currentCard.difficulty)}`}>
-              {currentCard.difficulty}
-            </span>
+            {currentCard && (
+              <span className={`text-xs px-2 py-1 rounded-md border ${getDifficultyColor(currentCard.difficulty)}`}>
+                {currentCard.difficulty}
+              </span>
+            )}
           </div>
           <div className="text-xs text-gray-400">
             {studySession.correct}/{studySession.total}
@@ -145,7 +264,7 @@ export function FlashcardView() {
                     <div className="w-10 h-10 bg-gradient-to-br from-cyan-500/20 to-teal-500/20 rounded-xl flex items-center justify-center mx-auto mb-3 border border-cyan-400/20">
                       <span className="text-xl">🤔</span>
                     </div>
-                    <h3 className="text-base font-semibold text-gray-100 leading-relaxed">{currentCard.question}</h3>
+                    <h3 className="text-base font-semibold text-gray-100 leading-relaxed">{currentCard?.question}</h3>
                   </div>
                 </div>
 
@@ -166,7 +285,7 @@ export function FlashcardView() {
                     <div className="w-10 h-10 bg-gradient-to-br from-teal-500/20 to-cyan-500/20 rounded-xl flex items-center justify-center mx-auto mb-3 border border-teal-400/20">
                       <span className="text-xl">💡</span>
                     </div>
-                    <p className="text-sm text-gray-200 leading-relaxed">{currentCard.answer}</p>
+                    <p className="text-sm text-gray-200 leading-relaxed">{currentCard?.answer}</p>
                   </div>
                 </div>
 
@@ -207,10 +326,20 @@ export function FlashcardView() {
             <Button
               variant="outline"
               size="sm"
+              onClick={shuffleCards}
               className="btn-modern border-white/20 hover:bg-white/10 rounded-xl px-3 py-2 text-gray-300 transition-all duration-300 text-xs"
             >
               <Shuffle className="h-3 w-3 mr-1" />
               Mix
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => generateFlashcards(20)}
+              className="btn-modern border-white/20 hover:bg-white/10 rounded-xl px-3 py-2 text-gray-300 transition-all duration-300 text-xs"
+            >
+              More Cards
             </Button>
           </div>
 
@@ -248,7 +377,7 @@ export function FlashcardView() {
         {/* Study progress indicator */}
         <div className="text-center">
           <p className="text-xs text-gray-400">
-            {completedCards.length} completed • {mockFlashcards.length - completedCards.length} remaining
+            {completedCards.length} completed • {flashcards.length - completedCards.length} remaining
           </p>
         </div>
       </div>

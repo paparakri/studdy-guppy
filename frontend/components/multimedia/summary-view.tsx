@@ -3,7 +3,11 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { BookOpen, Clock, Target, Lightbulb } from 'lucide-react'
 
-export function SummaryView() {
+interface SummaryViewProps {
+  selectedDocuments: string[]
+}
+
+export function SummaryView({ selectedDocuments }: SummaryViewProps) {
   return (
     <ScrollArea className="h-full">
       <div className="p-6 space-y-6">

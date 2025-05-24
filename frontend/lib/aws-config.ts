@@ -32,13 +32,13 @@ export const transcribeClient = new TranscribeClient(awsConfig);
 export const pollyClient = new PollyClient(awsConfig);
 
 // Helper function for Claude
-export async function callClaude(prompt: string): Promise<string> {
+export async function callClaude(prompt: string, maxTokens: number = 1000): Promise<string> {
   try {
     const response = await bedrockClient.invokeModel({
       modelId: 'anthropic.claude-3-sonnet-20240229-v1:0',
       body: JSON.stringify({
         anthropic_version: 'bedrock-2023-05-31',
-        max_tokens: 1000,
+        max_tokens: maxTokens,
         messages: [{ role: 'user', content: prompt }]
       })
     });
