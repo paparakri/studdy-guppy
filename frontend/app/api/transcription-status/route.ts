@@ -1,11 +1,10 @@
 // app/api/transcription-status/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { transcribeClient, s3Client, comprehendClient } from '@/lib/aws-config';
+import { transcribeClient, s3Client, comprehendClient, callClaude } from '@/lib/aws-config';
 import { GetTranscriptionJobCommand } from '@aws-sdk/client-transcribe';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { DetectSentimentCommand, DetectKeyPhrasesCommand } from '@aws-sdk/client-comprehend';
 import { getComprehendCapabilities, isGreekLanguage, enhanceGreekText, cleanTranscriptText } from '@/lib/comprehend-helpers';
-import {LanguageCode} from '@aws-sdk/client-comprehend';
 
 export async function GET(request: NextRequest) {
   try {
@@ -49,8 +48,20 @@ export async function GET(request: NextRequest) {
         const transcriptData = await transcriptResponse.json();
         
         // Format transcript with speakers (similar to Python script)
-        const formattedText = formatTranscriptWithSpeakers(transcriptData);
+        let formattedText = formatTranscriptWithSpeakers(transcriptData);
         
+        try {
+          const errorCorrectionPrompt = `Please fix any transcription errors in the following text while preserving the original meaning and speaker labels. Correct spelling mistakes, grammar errors, and obvious transcription artifacts, but keep the content and structure intact:
+          ${formattedText}
+          Return only the corrected text without any additional commentary.`;
+        
+          const correctedText = await callClaude(errorCorrectionPrompt, 4000);
+          formattedText = correctedText;
+        } catch (error) {
+          console.warn('Claude error correction failed:', error);
+          // Continue with original text if Claude fails
+        }
+
         // If Greek or any supported language, improve with Comprehend
         let finalText = formattedText;
         if (detectedLanguage) {
