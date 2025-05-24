@@ -13,27 +13,13 @@ interface FilePanelProps {
 }
 
 // Enhanced mock file data with additional metadata for better UI representation
-const mockFiles = [
-  {
-    id: 1,
-    name: "Machine Learning Basics.pdf",
-    type: "pdf",
-    selected: true,
-    size: "2.4 MB",
-    lastModified: "2h ago",
-  },
-  {
-    id: 2,
-    name: "Data Structures Lecture.mp4",
-    type: "video",
-    selected: true,
-    size: "45.2 MB",
-    lastModified: "1d ago",
-  },
-  { id: 3, name: "Physics Notes.docx", type: "text", selected: false, size: "1.1 MB", lastModified: "3d ago" },
-  { id: 4, name: "Calculus Lecture.mp3", type: "audio", selected: true, size: "12.8 MB", lastModified: "1w ago" },
-  { id: 5, name: "Organic Chemistry.pdf", type: "pdf", selected: false, size: "3.7 MB", lastModified: "2w ago" },
-]
+const mockFiles: {
+  id: number;
+  name: string;
+  type: string;
+  selected: boolean;
+  size: string;
+}[] = []
 
 // Fix: Add onSelectedDocumentsChange to the destructured props
 export function FilePanel({ className, onSelectedDocumentsChange }: FilePanelProps) {

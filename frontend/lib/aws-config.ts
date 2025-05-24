@@ -11,16 +11,17 @@ if (!process.env.AWS_ACCESS_KEY_ID) {
 if (!process.env.AWS_SECRET_ACCESS_KEY) {
   throw new Error('AWS_SECRET_ACCESS_KEY is not set');
 }
-if (!process.env.AWS_REGION) {
-  throw new Error('AWS_REGION is not set');
+if (!process.env.AWS_SESSION_TOKEN) {
+  throw new Error('AWS_SESSION_TOKEN is not set (required for temporary credentials)');
 }
 
-// AWS client configuration
+// AWS client configuration for temporary credentials
 const awsConfig = {
-  region: process.env.AWS_REGION,
+  region: process.env.AWS_REGION || 'us-west-2',
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    sessionToken: process.env.AWS_SESSION_TOKEN, // This is the key difference!
   },
 };
 
@@ -33,8 +34,6 @@ export const pollyClient = new PollyClient(awsConfig);
 // Helper function for Claude
 export async function callClaude(prompt: string): Promise<string> {
   try {
-    console.log('🔧 Calling Bedrock with prompt:', prompt.substring(0, 50) + '...');
-    
     const response = await bedrockClient.invokeModel({
       modelId: 'anthropic.claude-3-sonnet-20240229-v1:0',
       body: JSON.stringify({
@@ -44,17 +43,12 @@ export async function callClaude(prompt: string): Promise<string> {
       })
     });
 
-    // 🎯 FIX: Properly handle the response body in Node.js
     const responseBody = new TextDecoder().decode(response.body);
     const result = JSON.parse(responseBody);
-    
-    console.log('✅ Bedrock response received');
+
     return result.content[0].text;
   } catch (error) {
-    console.error('❌ Full Bedrock error details:', error);
-    console.error('Error name:', (error as any)?.name);
-    console.error('Error message:', (error as any)?.message);
-    console.error('Error code:', (error as any)?.$metadata?.httpStatusCode);
-    throw error;
+    console.error('Bedrock error:', error);
+    throw new Error('Failed to call Claude');
   }
 }

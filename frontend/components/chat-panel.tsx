@@ -8,31 +8,20 @@ import { Send, Bot, User, Sparkles, MessageSquare } from 'lucide-react'
 
 interface ChatPanelProps {
   className?: string
+  selectedDocuments: string[]
+}
+
+interface Message {
+  id: number;
+  role: string;
+  content: string;
+  timestamp: string;
 }
 
 // Enhanced mock chat messages with better structure and metadata
-const initialMessages = [
-  {
-    id: 1,
-    role: "assistant",
-    content: "Hello! I'm Study Guppy, your AI study assistant. I've analyzed your uploaded materials and I'm ready to help you learn more effectively. What would you like to explore today?",
-    timestamp: "10:30 AM"
-  },
-  { 
-    id: 2, 
-    role: "user", 
-    content: "Can you summarize the key concepts from the Machine Learning Basics PDF?",
-    timestamp: "10:32 AM"
-  },
-  {
-    id: 3,
-    role: "assistant",
-    content: "Based on the Machine Learning Basics PDF, here are the key concepts:\n\n**1. Supervised Learning** - Training models with labeled data to make predictions\n**2. Unsupervised Learning** - Finding hidden patterns in unlabeled data\n**3. Reinforcement Learning** - Learning through trial and error with rewards\n**4. Neural Networks** - Computational models inspired by the human brain\n\nWould you like me to elaborate on any of these concepts or create flashcards for better retention?",
-    timestamp: "10:33 AM"
-  },
-]
+const initialMessages:Message[] = []
 
-export function ChatPanel({ className }: ChatPanelProps) {
+export function ChatPanel({ className, selectedDocuments }: ChatPanelProps) {
   const [messages, setMessages] = useState(initialMessages)
   const [input, setInput] = useState("")
   const [isTyping, setIsTyping] = useState(false)
@@ -44,14 +33,10 @@ export function ChatPanel({ className }: ChatPanelProps) {
   }, [messages])
 
   // Enhanced message sending with typing indicator
-  const sendMessage = () => {
-
-    // TODO: Replace existing mock logic with:
-    // const response = await fetch('/api/chat', { ... });
-
+  const sendMessage = async () => {
     if (input.trim() === "") return
 
-    // Add user message with timestamp
+    // Add user message to UI
     const newMessage = {
       id: messages.length + 1,
       role: "user",
@@ -60,20 +45,50 @@ export function ChatPanel({ className }: ChatPanelProps) {
     }
 
     setMessages([...messages, newMessage])
+    const userInput = input
     setInput("")
     setIsTyping(true)
 
-    // Simulate AI response with realistic typing delay
-    setTimeout(() => {
-      setIsTyping(false)
-      const aiResponse = {
-        id: messages.length + 2,
-        role: "assistant",
-        content: `I understand you're asking about "${input}". In a real application, I would analyze your study materials and provide a comprehensive, personalized response to help you learn more effectively.`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    try {
+      // Send message with selected documents
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userInput,
+          documentIds: selectedDocuments // Send all selected document IDs
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        // Add AI response to UI
+        const aiResponse = {
+          id: messages.length + 2,
+          role: "assistant",
+          content: data.response,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+
+        setMessages(prev => [...prev, aiResponse])
+      } else {
+        console.error('Chat error:', data.error)
+        // Add error message to UI
+        const errorMessage = {
+          id: messages.length + 2,
+          role: "assistant", 
+          content: "Sorry, I encountered an error. Please try again.",
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+        setMessages(prev => [...prev, errorMessage])
       }
-      setMessages((prev) => [...prev, aiResponse])
-    }, 1500)
+    } catch (error) {
+      console.error('Chat network error:', error)
+      // Handle network error
+    } finally {
+      setIsTyping(false)
+    }
   }
 
   // Handle Enter key press for better UX
@@ -83,6 +98,23 @@ export function ChatPanel({ className }: ChatPanelProps) {
       sendMessage()
     }
   }
+
+  const getDocumentContextIndicator = () => {
+    if (!selectedDocuments || selectedDocuments.length === 0) {
+      return (
+        <div className="text-xs text-gray-500 mb-2 px-3">
+          💡 Select documents in the left panel to chat about them
+        </div>
+      )
+    }
+    
+    return (
+      <div className="text-xs text-cyan-400 mb-2 px-3">
+        📚 Chatting about {selectedDocuments.length} selected document{selectedDocuments.length > 1 ? 's' : ''}
+      </div>
+    )
+  }
+
 
   return (
     <div className={`flex flex-col ${className} overflow-hidden`}>
@@ -181,6 +213,7 @@ export function ChatPanel({ className }: ChatPanelProps) {
 
       {/* Enhanced input area with modern styling and better UX */}
       <div className="p-6 border-t border-white/10">
+        {getDocumentContextIndicator()}
         <div className="flex items-end gap-3">
           <div className="flex-1 relative">
             <Input

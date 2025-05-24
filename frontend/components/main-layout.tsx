@@ -119,7 +119,10 @@ export function MainLayout() {
           style={{ width: `${middlePanelWidth}%` }}
         >
           <div className="h-full p-1 px-0">
-            <ChatPanel className="h-full bg-gray-900/50 backdrop-blur-sm border border-white/10 rounded-2xl shadow-modern overflow-hidden" />
+            <ChatPanel
+              className="h-full bg-gray-900/50 backdrop-blur-sm border border-white/10 rounded-2xl shadow-modern overflow-hidden"
+              selectedDocuments={selectedDocuments}
+            />
           </div>
         </div>
 
