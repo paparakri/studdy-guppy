@@ -1,7 +1,7 @@
 // components/file-panel.tsx - UPDATED FILE
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -44,24 +44,30 @@ export function FilePanel({ className, onSelectedDocumentsChange, onOpenAquarium
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<string>('')
   
-  useEffect(() => {
-    const selectedDocIds = files
+  // FIXED: Memoize selectedDocuments and fileStatuses to prevent unnecessary re-creation
+  const selectedDocuments = useMemo(() => {
+    return files
       .filter(file => file.selected)
       .map(file => file.id)
-    
-    // Create file status map for multimedia components
-    const fileStatuses: Record<string, FileStatus> = {}
+  }, [files])
+
+  const fileStatuses = useMemo(() => {
+    const statuses: Record<string, FileStatus> = {}
     files.forEach(file => {
-      fileStatuses[file.id] = {
+      statuses[file.id] = {
         id: file.id,
         status: file.status,
         isTranscribing: file.isTranscribing || false,
         name: file.name
       }
     })
-    
-    onSelectedDocumentsChange(selectedDocIds, fileStatuses)
-  }, [files, onSelectedDocumentsChange])
+    return statuses
+  }, [files])
+
+  // FIXED: Only call onSelectedDocumentsChange when the actual values change
+  useEffect(() => {
+    onSelectedDocumentsChange(selectedDocuments, fileStatuses)
+  }, [selectedDocuments, fileStatuses, onSelectedDocumentsChange])
 
   // Poll for transcription status
   useEffect(() => {
@@ -247,7 +253,7 @@ export function FilePanel({ className, onSelectedDocumentsChange, onOpenAquarium
           <h2 className="text-lg font-bold gradient-text truncate">Study Materials</h2>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-400 bg-gray-800/50 px-2 py-1 rounded-full whitespace-nowrap">
-              {files.filter((f) => f.selected).length} selected
+              {selectedDocuments.length} selected
             </span>
           </div>
         </div>
