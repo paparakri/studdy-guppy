@@ -1,3 +1,4 @@
+// components/file-panel.tsx - UPDATED FILE
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
@@ -6,10 +7,12 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Search, Upload, File, FileText, FileAudio, FileVideo, Plus, FolderPlus, Loader2, Clock, CheckCircle, AlertCircle } from 'lucide-react'
+import { AquariumWidget } from "@/components/aquarium/aquarium-widget"
 
 interface FilePanelProps {
   className?: string
   onSelectedDocumentsChange: (selectedDocs: string[], fileStatuses: Record<string, FileStatus>) => void
+  onOpenAquarium: () => void // NEW: Add aquarium modal trigger
 }
 
 interface FileStatus {
@@ -35,7 +38,7 @@ interface FileItem {
 
 const mockFiles: FileItem[] = []
 
-export function FilePanel({ className, onSelectedDocumentsChange }: FilePanelProps) {
+export function FilePanel({ className, onSelectedDocumentsChange, onOpenAquarium }: FilePanelProps) {
   const [files, setFiles] = useState<FileItem[]>(mockFiles)
   const [searchQuery, setSearchQuery] = useState("")
   const [isUploading, setIsUploading] = useState(false)
@@ -408,6 +411,11 @@ export function FilePanel({ className, onSelectedDocumentsChange }: FilePanelPro
           )}
         </div>
       </ScrollArea>
+
+      {/* NEW: Aquarium Widget at the bottom */}
+      <div className="p-4 border-t border-white/10 flex-shrink-0">
+        <AquariumWidget onOpenModal={onOpenAquarium} />
+      </div>
     </div>
   )
 }

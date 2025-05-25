@@ -66,6 +66,28 @@ export async function POST(request: NextRequest) {
     // Add session to history
     await progressStorage.addSessionToHistory(userId, sessionResult);
 
+    // NEW: Also update guppy system with study time
+    try {
+      const studyMinutes = Math.round(sessionResult.timeSpent / 60); // Convert seconds to minutes
+      if (studyMinutes >= 1) { // Only submit if at least 1 minute
+        const guppyResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/guppies`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            studyMinutes
+          })
+        });
+
+        if (guppyResponse.ok) {
+          console.log(`Added ${studyMinutes} minutes to guppy system for user ${userId}`);
+        }
+      }
+    } catch (guppyError) {
+      console.error('Failed to update guppy system:', guppyError);
+      // Don't fail the whole request if guppy update fails
+    }
+
     // Check for new achievements (simplified)
     const newAchievements = checkForNewAchievements(currentProgress, updatedProgress);
 
