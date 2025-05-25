@@ -164,58 +164,86 @@ export function QuizModal({ onClose, selectedDocuments }: QuizModalProps) {
   }
 
   // NEW: Complete quiz and submit progress
-  const completeQuiz = async () => {
-    setQuizCompleted(true)
-    setIsSubmittingProgress(true)
+// NEW: Complete quiz and submit progress
+const completeQuiz = async () => {
+  setQuizCompleted(true)
+  setIsSubmittingProgress(true)
 
-    try {
-      // Calculate session metrics
-      const totalSessionTime = Math.round((Date.now() - sessionStartTime) / 1000)
-      const correctAnswers = questionResults.filter(result => result.isCorrect).length
+  try {
+    // Calculate session metrics
+    const totalSessionTime = Math.round((Date.now() - sessionStartTime) / 1000)
+    const correctAnswers = questionResults.filter(result => result.isCorrect).length
 
-      // Create session result for progress tracking
-      const sessionResult: StudySessionResult = {
-        sessionId: `quiz_${Date.now()}`,
-        userId,
-        sessionType: 'quiz',
-        documentIds: selectedDocuments,
-        questionResults,
-        totalQuestions: quizQuestions.length,
-        correctAnswers,
-        accuracy: (correctAnswers / quizQuestions.length) * 100,
-        timeSpent: totalSessionTime,
-        completedAt: new Date().toISOString(),
-        difficulty
-      }
-
-      // Submit progress to API
-      const progressResponse = await fetch('/api/progress', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          sessionResult
-        })
-      })
-
-      if (progressResponse.ok) {
-        const progressData = await progressResponse.json()
-        console.log('Progress updated successfully:', progressData)
-        
-        // Show achievements if any
-        if (progressData.newAchievements?.length > 0) {
-          // You could show a toast or modal for achievements
-          console.log('New achievements unlocked:', progressData.newAchievements)
-        }
-      } else {
-        console.error('Failed to update progress')
-      }
-    } catch (error) {
-      console.error('Failed to submit progress:', error)
-    } finally {
-      setIsSubmittingProgress(false)
+    // Create session result for progress tracking
+    const sessionResult: StudySessionResult = {
+      sessionId: `quiz_${Date.now()}`,
+      userId,
+      sessionType: 'quiz',
+      documentIds: selectedDocuments,
+      questionResults,
+      totalQuestions: quizQuestions.length,
+      correctAnswers,
+      accuracy: (correctAnswers / quizQuestions.length) * 100,
+      timeSpent: totalSessionTime,
+      completedAt: new Date().toISOString(),
+      difficulty
     }
+
+    // Submit progress to API
+    const progressResponse = await fetch('/api/progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        sessionResult
+      })
+    })
+
+    if (progressResponse.ok) {
+      const progressData = await progressResponse.json()
+      console.log('Progress updated successfully:', progressData)
+      
+      // Show achievements if any
+      if (progressData.newAchievements?.length > 0) {
+        console.log('New achievements unlocked:', progressData.newAchievements)
+      }
+
+      // NEW: Check if guppies were earned and trigger notification
+      try {
+        const guppyResponse = await fetch(`/api/guppies?userId=${userId}`);
+        if (guppyResponse.ok) {
+          const guppyData = await guppyResponse.json();
+          if (guppyData.success && guppyData.data.fish.length > 0) {
+            // Find recently earned guppies (earned in the last minute)
+            const recentGuppies = guppyData.data.fish.filter((fish: any) => {
+              const earnedTime = new Date(fish.earnedAt).getTime();
+              const nowTime = Date.now();
+              return (nowTime - earnedTime) < 60000; // Last minute
+            });
+
+            if (recentGuppies.length > 0) {
+              // Dispatch event for aquarium widget
+              window.dispatchEvent(new CustomEvent('newGuppiesEarned', { 
+                detail: { 
+                  guppies: recentGuppies, 
+                  studyMinutes: Math.round(totalSessionTime / 60)
+                } 
+              }));
+            }
+          }
+        }
+      } catch (guppyError) {
+        console.log('Could not check for new guppies:', guppyError);
+      }
+    } else {
+      console.error('Failed to update progress')
+    }
+  } catch (error) {
+    console.error('Failed to submit progress:', error)
+  } finally {
+    setIsSubmittingProgress(false)
   }
+}
 
   // Enhanced score calculation with detailed analytics
   const calculateScore = () => {

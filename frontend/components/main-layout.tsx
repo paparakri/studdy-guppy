@@ -1,17 +1,20 @@
+// components/main-layout.tsx - UPDATED FILE
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { FilePanel } from "@/components/file-panel"
 import { ChatPanel } from "@/components/chat-panel"
 import { MultimediaPanel } from "@/components/multimedia-panel"
 import { QuizModal } from "@/components/modals/quiz-modal"
 import { ProgressModal } from "@/components/modals/progress-modal"
 import { MindMapModal } from "@/components/modals/mind-map-modal"
+import { AquariumModal } from "@/components/modals/aquarium-modal"
 import { Header } from "@/components/header"
 import { PodcastModal } from "./modals/podcast-modal"
+import { useStudyTime } from "@/hooks/use-study-time"
 
 // Define modal types for type safety and better code organization
-export type ModalType = "quiz" | "progress" | "mindmap" | "podcast" | null
+export type ModalType = "quiz" | "progress" | "mindmap" | "podcast" | "aquarium" | null
 
 // File status interface
 interface FileStatus {
@@ -54,10 +57,48 @@ export function MainLayout() {
   const [selectedDocuments, setSelectedDocuments] = useState<string[]>([])
   const [fileStatuses, setFileStatuses] = useState<Record<string, FileStatus>>({})
 
+  // NEW: Initialize study time tracking
+  const { 
+    autoStartIfNeeded, 
+    recordActivity, 
+    isTracking,
+    getCurrentSessionTime,
+    getFormattedCurrentTime 
+  } = useStudyTime()
+
+  // NEW: Track user interactions for study time
+  useEffect(() => {
+    const handleUserActivity = () => {
+      // Auto-start study session when user interacts with study materials
+      if (selectedDocuments.length > 0) {
+        autoStartIfNeeded()
+      } else {
+        recordActivity()
+      }
+    }
+
+    // Add event listeners for various user interactions
+    const events = ['click', 'keydown', 'scroll', 'mousemove']
+    events.forEach(event => {
+      document.addEventListener(event, handleUserActivity, { passive: true })
+    })
+
+    return () => {
+      events.forEach(event => {
+        document.removeEventListener(event, handleUserActivity)
+      })
+    }
+  }, [selectedDocuments, autoStartIfNeeded, recordActivity])
+
   const handleSelectedDocumentsChange = useCallback((selectedDocs: string[], statuses: Record<string, FileStatus>) => {
     setSelectedDocuments(selectedDocs)
     setFileStatuses(statuses)
-  }, [])
+    
+    // NEW: Auto-start study tracking when documents are selected
+    if (selectedDocs.length > 0) {
+      autoStartIfNeeded()
+    }
+  }, [autoStartIfNeeded])
 
   // Modal control functions with proper typing
   const openModal = (modal: ModalType) => {
@@ -66,6 +107,11 @@ export function MainLayout() {
 
   const closeModal = () => {
     setActiveModal(null)
+  }
+
+  // NEW: Open aquarium modal
+  const openAquarium = () => {
+    setActiveModal("aquarium")
   }
 
   // Left panel resizer handler
@@ -106,6 +152,18 @@ export function MainLayout() {
       {/* Enhanced header with modern styling */}
       <Header />
 
+      {/* NEW: Study time indicator (optional, can be added to header) */}
+      {isTracking && (
+        <div className="bg-gradient-to-r from-cyan-500/10 to-teal-500/10 border-b border-cyan-400/20 px-4 py-2">
+          <div className="flex items-center justify-center gap-2 text-sm">
+            <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
+            <span className="text-cyan-300">
+              Studying: {getFormattedCurrentTime()}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Main content area with resizable panels */}
       <main className="flex flex-1 overflow-hidden">
         {/* Left Panel - File Management with adjustable width */}
@@ -115,8 +173,9 @@ export function MainLayout() {
         >
           <div className="h-full p-1 pl-1 pr-0">
             <FilePanel 
-            className="h-full bg-gray-900/50 backdrop-blur-sm border border-white/10 rounded-2xl shadow-modern overflow-hidden"
+              className="h-full bg-gray-900/50 backdrop-blur-sm border border-white/10 rounded-2xl shadow-modern overflow-hidden"
               onSelectedDocumentsChange={handleSelectedDocumentsChange}
+              onOpenAquarium={openAquarium} // NEW: Pass aquarium modal trigger
             />
           </div>
         </div>
@@ -176,6 +235,13 @@ export function MainLayout() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <PodcastModal onClose={closeModal} selectedDocuments={selectedDocuments} />
         </div>
+      )}
+      {/* NEW: Aquarium Modal */}
+      {activeModal === "aquarium" && (
+        <AquariumModal 
+          isOpen={true} 
+          onClose={closeModal} 
+        />
       )}
     </div>
   )
